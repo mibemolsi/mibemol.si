@@ -19,7 +19,44 @@ import {
   hasAuth,
   type User
 } from './cloudStorage'
-import { detectBPM } from './bpmDetector'
+import {
+  addBeatAt,
+  hasTempoMap,
+  hydrateTempoMap,
+  hydrateTrackTempoMap,
+  isFollowEnabled,
+  localBpmAt,
+  moveBeatTime,
+  removeBeat,
+  rulerMapBeats,
+  serializeTrackTempoMap,
+  setDownbeatAt,
+  setDownbeatAtTime,
+  type TempoMap
+} from './beatTracker'
+import { bpmFromEnvelope, envelopeForMix, trackBeatsInWorker } from './beatTrackerHost'
+import {
+  appendTap,
+  clampBpm,
+  doubleBpm,
+  formatBpm,
+  halfBpm,
+  parseBpmInput,
+  tapTempoFromTimestamps
+} from './tempoMath'
+import {
+  barDurationSeconds,
+  hydrateTrackMetronome,
+  meterOf,
+  normalizeMetronomeMeter,
+  phaseFromDownbeat,
+  pulseDurationSeconds,
+  pulsesPerBar,
+  serializeTrackMetronome,
+  wrapPhase,
+  type MetronomeMeter
+} from './metronomeMeter'
+import { MetronomeSettingsPanel } from './MetronomeSettingsPanel'
 import { encodeAudioBufferWAV } from './wav'
 import { TrackHeader } from './TrackHeader'
 import { TrackLane } from './TrackLane'
@@ -41,6 +78,21 @@ import {
   upsertProjectRegistry,
   type ProjectRegistryEntry
 } from './projectRegistry'
+import {
+  isActivationError,
+  pickSaveFileHandle,
+  queryWritePermission,
+  saveHandleAfterGesture,
+  type SaveFilePickerFn
+} from './fileSave'
+import {
+  UNTITLED_PROJECT_NAME,
+  baseNameFromMusicalia,
+  commitProjectName,
+  displayProjectName,
+  projectTabTitle,
+  suggestedMusicaliaFileName
+} from './projectTitle'
 import { TimelineRuler } from './TimelineRuler'
 import {
   applyLoopSnap,
@@ -119,7 +171,6 @@ import {
 } from './trackList'
 import { lastScheduledMetronomeEvents, MetronomeEngine } from './metronomeEngine'
 import {
-  DEFAULT_BEATS_PER_BAR,
   METRONOME_AISLAR_RULE,
   canDeleteTrack,
   canRenameTrack,
@@ -233,8 +284,10 @@ import {
   IconRecord,
   IconRepeat,
   IconSave,
+  IconSaveAs,
   IconScissors,
   IconSkipBack,
+  IconSettings,
   IconSliders,
   IconSpline,
   IconSplit,
@@ -247,11 +300,20 @@ import {
   applyGroupTimeDelta,
   clampGroupTrackDelta,
   clipIdsOnTracks,
+  clipsFromHereToEnd,
+  clipsOverlappingTime,
   clientRectsIntersect,
   commitEditedTrackName,
+  contentPointFromClient,
   deleteTrackFromList,
+  isDuplicateDragModifier,
+  isMarqueeModifier,
   marqueeClientRect,
+  marqueeEdgeScrollDelta,
+  applyClipClickSelect,
+  applyClipPointerSelect,
   mergeSelection,
+  type ClipPointerSelectAction,
   nudgeDeltaSeconds,
   packClipboard,
   parseMoveAmountSeconds,
@@ -275,6 +337,7 @@ import {
 import {
   ZOOM_SLIDER_MAX,
   anchoredScrollLeft,
+  clampHorizontalZoom,
   sliderToZoom,
   wheelZoom,
   zoomToSlider
@@ -308,7 +371,7 @@ import {
   trackKindOf
 } from './drumProject'
 
-const APP_VERSION = '0.0094b'
+const APP_VERSION = '0.0095b'
 
 interface ClipboardClip {
   buffer: AudioBuffer
@@ -356,6 +419,8 @@ interface TrackState {
   name?: string
   kind?: 'audio' | 'drum' | 'metronome'
   drum?: DrumKit
+  metronome?: MetronomeMeter
+  tempoMap?: TempoMap
 }
 
 function App() {
@@ -372,6 +437,10 @@ function App() {
   const [calibratingLatency, setCalibratingLatency] = useState(false)
   const [clipLatencyEdit, setClipLatencyEdit] = useState<{ trackIndex: number; clipId: string; ms: number } | null>(null)
   const [bpm, setBpm] = useState(120)
+  const [metroSettingsOpen, setMetroSettingsOpen] = useState(false)
+  const [metroAlignArmed, setMetroAlignArmed] = useState(false)
+  const tapTimesRef = useRef<number[]>([])
+  const [tapFlash, setTapFlash] = useState(false)
   const [pitchSemitones, setPitchSemitones] = useState(0)
   const [tempoRate, setTempoRate] = useState(1)
   const [practiceIndex, setPracticeIndex] = useState<number | null>(null)
@@ -444,9 +513,17 @@ function App() {
     y0: 0,
     x1: 0,
     y1: 0,
+    pointerX: 0,
+    pointerY: 0,
     additive: false,
-    toggle: false
+    toggle: false,
+    fromClip: false
   })
+  const marqueeScrollRafRef = useRef<number | null>(null)
+  const startMarqueeRef = useRef<(
+    e: { clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; button?: number; preventDefault?: () => void },
+    opts?: { fromClip?: boolean }
+  ) => void>(() => {})
   const [marqueeBox, setMarqueeBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const dragRafRef = useRef<number | null>(null)
   const resizeRafRef = useRef<number | null>(null)
@@ -511,7 +588,13 @@ function App() {
   const [showAuth, setShowAuth] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [authLoading, setAuthLoading] = useState(false)
-  const [currentProjectName, setCurrentProjectName] = useState('Proyecto sin título')
+  const [currentProjectName, setCurrentProjectName] = useState(UNTITLED_PROJECT_NAME)
+  const [projectFileName, setProjectFileName] = useState<string | null>(null)
+  const [projectDirty, setProjectDirty] = useState(false)
+  const [renamingProject, setRenamingProject] = useState(false)
+  const [projectNameDraft, setProjectNameDraft] = useState('')
+  const dirtyArmedRef = useRef(false)
+  const projectNameInputRef = useRef<HTMLInputElement>(null)
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const currentProjectIdRef = useRef<string | null>(null)
   const [showMyProjects, setShowMyProjects] = useState(false)
@@ -541,7 +624,14 @@ function App() {
   const [undoStack, setUndoStack] = useState<any[]>([])
   const [redoStack, setRedoStack] = useState<any[]>([])
   const [showHelp, setShowHelp] = useState(false)
-  const [currentFileHandle, setCurrentFileHandle] = useState<any>(null)
+  const [currentFileHandle, setCurrentFileHandle] = useState<FileSystemFileHandle | null>(null)
+  const currentFileHandleRef = useRef<FileSystemFileHandle | null>(null)
+  currentFileHandleRef.current = currentFileHandle
+  const [fileHandleUnsaved, setFileHandleUnsaved] = useState(false)
+  const [fileSavePrompt, setFileSavePrompt] = useState<{
+    handle: FileSystemFileHandle | null
+    projectName: string
+  } | null>(null)
   const [trackDeleteConfirm, setTrackDeleteConfirm] = useState<{
     trackIndex: number
     name: string
@@ -559,6 +649,7 @@ function App() {
   practiceIndexRef.current = practiceIndex
   const selectedClipIdsRef = useRef(selectedClipIds)
   selectedClipIdsRef.current = selectedClipIds
+  const clipPointerSelectRef = useRef<{ clipId: string; action: ClipPointerSelectAction } | null>(null)
   const appCommitCountRef = useRef(0)
   appCommitCountRef.current += 1
   const trimLiveRef = useRef<{
@@ -588,9 +679,14 @@ function App() {
   const fileInsertAtRef = useRef<number | null>(null)
   const syncingVerticalScroll = useRef(false)
   
+  const currentMetronomeMeter = (): MetronomeMeter => {
+    const idx = findMetronomeIndex(trackStatesRef.current)
+    const track = idx >= 0 ? trackStatesRef.current[idx] : undefined
+    return meterOf(track)
+  }
+
   const getCountInSeconds = () => {
-    const secondsPerBeat = 60 / bpm
-    return countInBars * DEFAULT_BEATS_PER_BAR * secondsPerBeat
+    return countInBars * barDurationSeconds(bpm, currentMetronomeMeter())
   }
 
   const snapToGrid = (timeSeconds: number): number => {
@@ -609,6 +705,8 @@ function App() {
         kind: t.kind,
         drum: t.drum,
         ...serializeTrackAudio(t),
+        ...serializeTrackMetronome(t),
+        ...serializeTrackTempoMap(t),
         clips: t.clips.map(c => ({
           fileName: c.fileName,
           startPosition: c.startPosition,
@@ -642,7 +740,10 @@ function App() {
         solo: t.solo,
         volume: t.volume,
         name: t.name,
+        kind: t.kind,
         ...serializeTrackAudio(t),
+        ...serializeTrackMetronome(t),
+        ...serializeTrackTempoMap(t),
         clips: t.clips.map(c => ({
           fileName: c.fileName,
           startPosition: c.startPosition,
@@ -674,7 +775,10 @@ function App() {
         solo: t.solo,
         volume: t.volume,
         name: t.name,
+        kind: t.kind,
         ...serializeTrackAudio(t),
+        ...serializeTrackMetronome(t),
+        ...serializeTrackTempoMap(t),
         clips: t.clips.map(c => ({
           fileName: c.fileName,
           startPosition: c.startPosition,
@@ -759,6 +863,8 @@ function App() {
         kind: trackKindOf(t.kind),
         drum: t.drum,
         ...hydrateTrackAudio(t),
+        ...hydrateTrackMetronome(t, trackKindOf(t.kind)),
+        ...hydrateTrackTempoMap(t, trackKindOf(t.kind)),
         clips: clips.filter(c => c !== null)
       }
     }))
@@ -961,11 +1067,15 @@ function App() {
     const tracks = trackStatesRef.current
     const idx = findMetronomeIndex(tracks)
     const track = idx >= 0 ? tracks[idx] : undefined
+    const meter = meterOf(track)
     metronomeEngineRef.current.reschedule({
       enabled: !!track && !track.mute,
       destination: idx >= 0 ? trackGainsRef.current[idx] : undefined,
       bpm: bpmRef.current,
-      beatsPerBar: DEFAULT_BEATS_PER_BAR,
+      beatsPerBar: pulsesPerBar(meter, bpmRef.current),
+      meter,
+      tempoMap: track?.tempoMap,
+      clickSound: meter.clickSound,
       songTime,
       playOriginSong: playOriginSongRef.current,
       tempoRate: tempoRateRef.current,
@@ -1078,6 +1188,8 @@ function App() {
           kind: trackKindOf(t.kind),
           drum: projectDrumPayload(t.drum, i),
           ...serializeTrackAudio(t),
+          ...serializeTrackMetronome(t),
+          ...serializeTrackTempoMap(t),
           clips: savedClips
         }
       }))
@@ -1099,11 +1211,39 @@ function App() {
       }
       autosaveProject(state)
       lastClipBufferSigRef.current = sig
+      if (dirtyArmedRef.current) {
+        setProjectDirty(true)
+      }
+      // Session/IDB only. A timer is not a user gesture — never requestPermission here.
+      if (currentFileHandleRef.current) {
+        void queryWritePermission(currentFileHandleRef.current).then((status) => {
+          if (status !== 'granted') setFileHandleUnsaved(true)
+        })
+        setFileHandleUnsaved(true)
+      }
     }
     
     const timer = window.setTimeout(() => { void saveState() }, 1000)
     return () => window.clearTimeout(timer)
   }, [bpm, pitchSemitones, tempoRate, harmony, loopStart, loopEnd, trackStates, metronomeEnabled, isLoopEnabled, magnetEnabled, currentProjectName, currentProjectId])
+
+  useEffect(() => {
+    const shown = displayProjectName(currentProjectName, projectFileName)
+    document.title = projectTabTitle(shown, projectDirty)
+  }, [currentProjectName, projectFileName, projectDirty])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      dirtyArmedRef.current = true
+    }, 800)
+    return () => window.clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    if (!renamingProject) return
+    projectNameInputRef.current?.focus()
+    projectNameInputRef.current?.select()
+  }, [renamingProject])
 
   useEffect(() => {
     const scroller = lanesScrollRef.current
@@ -1162,7 +1302,7 @@ function App() {
       await ensureAudio()
       ensureTrackGains(state.tracks.length)
       
-      setBpm(state.bpm)
+      setBpm(clampBpm(Number(state.bpm) || 120))
       const loadedPitch = clampPitchSemitones(Number((state as { pitchSemitones?: unknown }).pitchSemitones) || 0)
       const loadedRate = clampTempoRate(Number((state as { tempoRate?: unknown }).tempoRate) || 1)
       pitchRef.current = loadedPitch
@@ -1244,6 +1384,8 @@ function App() {
           kind: trackKindOf(t.kind),
           drum,
           ...hydrateTrackAudio(t),
+          ...hydrateTrackMetronome(t, trackKindOf(t.kind)),
+          ...hydrateTrackTempoMap(t, trackKindOf(t.kind)),
           clips: loadedClips.filter(c => c !== null) as Clip[]
         }
       }))
@@ -1268,10 +1410,15 @@ function App() {
     projectLoadGenRef.current++
     console.log(`[New Project] Starting new project, gen=${projectLoadGenRef.current}`)
     await clearProject()
-    setCurrentProjectName('Proyecto sin título')
+    setCurrentProjectName(UNTITLED_PROJECT_NAME)
+    setProjectFileName(null)
     currentProjectIdRef.current = null
     setCurrentProjectId(null)
     setCurrentFileHandle(null)
+    currentFileHandleRef.current = null
+    setFileHandleUnsaved(false)
+    quietDirty()
+    setFileSavePrompt(null)
     window.location.reload()
   }
   
@@ -1329,9 +1476,66 @@ function App() {
     return id
   }
 
+  const shownProjectName = displayProjectName(currentProjectName, projectFileName)
+
+  const quietDirty = () => {
+    dirtyArmedRef.current = false
+    setProjectDirty(false)
+  }
+
+  const armDirtySoon = (ms = 500) => {
+    window.setTimeout(() => {
+      dirtyArmedRef.current = true
+    }, ms)
+  }
+
+  const applyProjectName = async (nextName: string) => {
+    const next = commitProjectName(nextName, shownProjectName)
+    setCurrentProjectName(next)
+    const id = currentProjectIdRef.current
+    const diskName = currentFileHandleRef.current?.name || projectFileName || suggestedMusicaliaFileName(next)
+    if (id) {
+      setMyProjects((prev) => prev.map((entry) => (
+        entry.id === id ? { ...entry, name: next } : entry
+      )))
+    }
+    if (id && (currentUser || hasAuth())) {
+      try {
+        const entries = await upsertProjectRegistry(buildRegistryEntry({
+          id,
+          name: next,
+          fileName: diskName,
+          bpm,
+          trackCount: trackStatesRef.current.length
+        }))
+        setMyProjects(entries)
+      } catch (error) {
+        console.warn('[Registry] No se pudo renombrar en Mis proyectos:', error)
+      }
+    }
+    return next
+  }
+
+  const beginProjectRename = () => {
+    setProjectNameDraft(shownProjectName)
+    setRenamingProject(true)
+  }
+
+  const cancelProjectRename = () => {
+    setRenamingProject(false)
+    setProjectNameDraft(shownProjectName)
+  }
+
+  const commitProjectRename = () => {
+    if (!renamingProject) return
+    setRenamingProject(false)
+    void applyProjectName(projectNameDraft)
+  }
+
   const registerSavedProject = async (projectName: string, fileName: string, handle?: FileSystemFileHandle | null) => {
     const id = ensureProjectId()
     if (handle) {
+      currentFileHandleRef.current = handle
       setCurrentFileHandle(handle)
       await persistFileHandle(id, handle)
     }
@@ -1350,6 +1554,108 @@ function App() {
     }
   }
 
+  const buildProjectArchiveBlob = async (projectName: string): Promise<Blob> => {
+    setExportProgress('Procesando audio...')
+    const zip = new JSZip()
+    const projectData = {
+      version: APP_VERSION,
+      id: ensureProjectId(),
+      name: projectName,
+      bpm,
+      pitchSemitones,
+      tempoRate,
+      harmony: serializeHarmony(harmony),
+      loopStart,
+      loopEnd,
+      playheadPosition,
+      metronomeEnabled,
+      magnetEnabled,
+      countInBars,
+      tracks: trackStatesRef.current.map((t, trackIdx) => ({
+        name: resolveTrackName(t.name, trackIdx),
+        mute: t.mute,
+        solo: t.solo,
+        volume: t.volume,
+        kind: trackKindOf(t.kind),
+        drum: projectDrumPayload(t.drum, trackIdx),
+        ...serializeTrackAudio(t),
+        ...serializeTrackMetronome(t),
+        ...serializeTrackTempoMap(t),
+        clips: t.clips.map((clip, clipIdx) => projectClipPayload(clip, trackIdx, clipIdx))
+      }))
+    }
+    zip.file('project.json', JSON.stringify(projectData, null, 2))
+
+    const bufferMap = new Map<AudioBuffer, string>()
+    const tracks = trackStatesRef.current
+    for (let trackIdx = 0; trackIdx < tracks.length; trackIdx++) {
+      const track = tracks[trackIdx]
+      if (track.drum) {
+        for (let padIdx = 0; padIdx < track.drum.pads.length; padIdx++) {
+          const pad = track.drum.pads[padIdx]
+          if (!pad.buffer) continue
+          const wavData = encodeAudioBufferWAV(pad.buffer)
+          zip.file(padZipName(trackIdx, padIdx), wavData.buffer as ArrayBuffer, { compression: 'STORE' })
+        }
+      }
+      for (let clipIdx = 0; clipIdx < track.clips.length; clipIdx++) {
+        const clip = track.clips[clipIdx]
+        if (isPatternClip(clip)) continue
+        let audioFileName: string
+        if (bufferMap.has(clip.buffer)) {
+          audioFileName = bufferMap.get(clip.buffer)!
+        } else {
+          audioFileName = `audio_${trackIdx}_${clipIdx}.wav`
+          bufferMap.set(clip.buffer, audioFileName)
+          const wavData = encodeAudioBufferWAV(clip.buffer)
+          zip.file(audioFileName, wavData.buffer as ArrayBuffer, { compression: 'STORE' })
+        }
+        const clipTotal = tracks.reduce((sum, t) => sum + t.clips.length, 0)
+        const progress = 10 + ((trackIdx * track.clips.length + clipIdx + 1) / Math.max(1, clipTotal)) * 80
+        setUploadProgress(progress)
+      }
+    }
+
+    setExportProgress('Empaquetando...')
+    setUploadProgress(90)
+    return zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    })
+  }
+
+  const persistToExistingHandle = async (fileHandle: FileSystemFileHandle, projectName: string): Promise<boolean> => {
+    setUploadProgress(5)
+    setExportProgress('Preparando proyecto...')
+    try {
+      const result = await saveHandleAfterGesture(fileHandle, () => buildProjectArchiveBlob(projectName))
+      if (!result.ok) {
+        setFileHandleUnsaved(true)
+        setFileSavePrompt({ handle: fileHandle, projectName })
+        return false
+      }
+      setUploadProgress(100)
+      setFileHandleUnsaved(false)
+      setFileSavePrompt(null)
+      setProjectDirty(false)
+      setProjectFileName(fileHandle.name || `${projectName}.musicalia`)
+      armDirtySoon()
+      setToastMessage(`✅ Proyecto guardado: ${projectName}`)
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 3000)
+      await registerSavedProject(projectName, fileHandle.name || `${projectName}.musicalia`, fileHandle)
+      console.log(`[Save] Project saved successfully: ${projectName}`)
+      return true
+    } catch (err) {
+      setFileHandleUnsaved(true)
+      throw err
+    } finally {
+      setUploadProgress(0)
+      setExportProgress('')
+    }
+  }
+
   const handleSaveToLocal = async (saveAs = false) => {
     try {
       const hasAnyAudio = trackStates.some(t => t.clips.length > 0)
@@ -1358,240 +1664,71 @@ function App() {
         setTimeout(() => setErrorMessage(null), 5000)
         return
       }
-      
-      // If we have a saved file handle and this is not "Save As", reuse it
-      if (!saveAs && currentFileHandle) {
-        await saveProjectToFileHandle(currentFileHandle, currentProjectName)
+
+      const existing = currentFileHandleRef.current
+      if (!saveAs && existing) {
+        await persistToExistingHandle(existing, currentProjectName)
         return
       }
-      
-      // Otherwise, ask for file location FIRST (before any async work)
-      // This preserves user activation for showSaveFilePicker
-      const fileName = `${sanitizeFilename(currentProjectName) || 'proyecto'}.musicalia`
-      
-      if ('showSaveFilePicker' in window) {
+
+      const fileName = suggestedMusicaliaFileName(displayProjectName(currentProjectName, projectFileName))
+
+      if (hasFileSystemAccess()) {
         try {
-          const handle = await (window as any).showSaveFilePicker({
-            suggestedName: fileName,
-            types: [{
-              description: 'Proyecto Musicalia',
-              accept: { 'application/x-musicalia': ['.musicalia'] }
-            }]
-          })
-          
-          // Keep the in-app name unless the user picked a different file name
+          const picker: SaveFilePickerFn = (opts) => {
+            const pick = (window as unknown as { showSaveFilePicker?: SaveFilePickerFn }).showSaveFilePicker
+            if (!pick) return Promise.reject(new Error('showSaveFilePicker no está disponible'))
+            return pick(opts)
+          }
+          const handle = await pickSaveFileHandle(fileName, picker) as FileSystemFileHandle
           const chosenBase = String(handle.name || fileName).replace(/\.musicalia$/i, '').trim()
           const savedFileName = chosenBase || currentProjectName
           setCurrentProjectName(savedFileName)
+          currentFileHandleRef.current = handle
           setCurrentFileHandle(handle)
-          
-          await saveProjectToFileHandle(handle, savedFileName)
+          await persistToExistingHandle(handle, savedFileName)
         } catch (e: any) {
-          if (e.name === 'AbortError') {
-            // User cancelled, do nothing
+          if (e.name === 'AbortError') return
+          if (isActivationError(e)) {
+            setFileHandleUnsaved(true)
+            setFileSavePrompt({ handle: currentFileHandleRef.current, projectName: currentProjectName })
             return
           }
           throw e
         }
       } else {
-        // Fallback for browsers without File System Access API
         await saveFallbackDownload(fileName)
       }
     } catch (err: any) {
       console.error('[Save] Error:', err)
+      if (isActivationError(err)) {
+        setFileHandleUnsaved(true)
+        setFileSavePrompt({ handle: currentFileHandleRef.current, projectName: currentProjectName })
+        return
+      }
       const errorMsg = err.message || 'Error al guardar'
       setErrorMessage(`Error al guardar: ${errorMsg}`)
       setTimeout(() => setErrorMessage(null), 5000)
     }
   }
-  
-  const saveProjectToFileHandle = async (fileHandle: any, projectName: string) => {
-    try {
-      setUploadProgress(5)
-      setExportProgress('Preparando proyecto...')
-      
-      const zip = new JSZip()
-      
-      const projectData = {
-        version: APP_VERSION,
-        id: ensureProjectId(),
-        name: projectName,
-        bpm,
-        pitchSemitones,
-        tempoRate,
-        harmony: serializeHarmony(harmony),
-        loopStart,
-        loopEnd,
-        playheadPosition,
-        metronomeEnabled,
-        magnetEnabled,
-        countInBars,
-        tracks: trackStates.map((t, trackIdx) => ({
-          name: resolveTrackName(t.name, trackIdx),
-          mute: t.mute,
-          solo: t.solo,
-          volume: t.volume,
-          kind: trackKindOf(t.kind),
-          drum: projectDrumPayload(t.drum, trackIdx),
-          ...serializeTrackAudio(t),
-          clips: t.clips.map((clip, clipIdx) => projectClipPayload(clip, trackIdx, clipIdx))
-        }))
-      }
-      
-      zip.file('project.json', JSON.stringify(projectData, null, 2))
-      
-      setExportProgress('Procesando audio...')
-      
-      const bufferMap = new Map<AudioBuffer, string>()
-      
-      for (let trackIdx = 0; trackIdx < trackStates.length; trackIdx++) {
-        const track = trackStates[trackIdx]
-        if (track.drum) {
-          for (let padIdx = 0; padIdx < track.drum.pads.length; padIdx++) {
-            const pad = track.drum.pads[padIdx]
-            if (!pad.buffer) continue
-            const wavData = encodeAudioBufferWAV(pad.buffer)
-            zip.file(padZipName(trackIdx, padIdx), wavData.buffer as ArrayBuffer, { compression: 'STORE' })
-          }
-        }
-        for (let clipIdx = 0; clipIdx < track.clips.length; clipIdx++) {
-          const clip = track.clips[clipIdx]
-          if (isPatternClip(clip)) continue
-          
-          let audioFileName: string
-          if (bufferMap.has(clip.buffer)) {
-            audioFileName = bufferMap.get(clip.buffer)!
-          } else {
-            audioFileName = `audio_${trackIdx}_${clipIdx}.wav`
-            bufferMap.set(clip.buffer, audioFileName)
-            
-            const wavData = encodeAudioBufferWAV(clip.buffer)
-            // Use STORE (no compression) for WAV files - they're already compressed
-            // and DEFLATE is slow and doesn't save much space
-            zip.file(audioFileName, wavData.buffer as ArrayBuffer, { compression: 'STORE' })
-          }
-          
-          const progress = 10 + ((trackIdx * track.clips.length + clipIdx + 1) / 
-            trackStates.reduce((sum, t) => sum + t.clips.length, 0)) * 80
-          setUploadProgress(progress)
-        }
-      }
-      
-      setExportProgress('Empaquetando...')
-      setUploadProgress(90)
-      
-      const blob = await zip.generateAsync({ 
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      })
-      
-      setExportProgress('Guardando en tu compu...')
-      setUploadProgress(95)
-      
-      const writable = await fileHandle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      
-      setUploadProgress(100)
-      
-      setToastMessage(`✅ Proyecto guardado: ${projectName}`)
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
-      await registerSavedProject(projectName, fileHandle.name || `${projectName}.musicalia`, fileHandle)
-      
-      console.log(`[Save] Project saved successfully: ${projectName}`)
-    } catch (err: any) {
-      console.error('[Save] Error:', err)
-      throw err
-    } finally {
-      setUploadProgress(0)
-      setExportProgress('')
+
+  const retryPermitAndSave = () => {
+    const prompt = fileSavePrompt
+    const handle = prompt?.handle ?? currentFileHandleRef.current
+    if (handle) {
+      void persistToExistingHandle(handle, prompt?.projectName || currentProjectName)
+      return
     }
+    void handleSaveToLocal(true)
   }
   
   const saveFallbackDownload = async (fileName: string) => {
     try {
       setUploadProgress(5)
       setExportProgress('Preparando proyecto...')
-      
-      const zip = new JSZip()
-      
-      const projectData = {
-        version: APP_VERSION,
-        id: ensureProjectId(),
-        name: currentProjectName,
-        bpm,
-        pitchSemitones,
-        tempoRate,
-        harmony: serializeHarmony(harmony),
-        loopStart,
-        loopEnd,
-        playheadPosition,
-        metronomeEnabled,
-        magnetEnabled,
-        countInBars,
-        tracks: trackStates.map((t, trackIdx) => ({
-          name: resolveTrackName(t.name, trackIdx),
-          mute: t.mute,
-          solo: t.solo,
-          volume: t.volume,
-          kind: trackKindOf(t.kind),
-          drum: projectDrumPayload(t.drum, trackIdx),
-          ...serializeTrackAudio(t),
-          clips: t.clips.map((clip, clipIdx) => projectClipPayload(clip, trackIdx, clipIdx))
-        }))
-      }
-      
-      zip.file('project.json', JSON.stringify(projectData, null, 2))
-      
-      setExportProgress('Procesando audio...')
-      
-      const bufferMap = new Map<AudioBuffer, string>()
-      
-      for (let trackIdx = 0; trackIdx < trackStates.length; trackIdx++) {
-        const track = trackStates[trackIdx]
-        if (track.drum) {
-          for (let padIdx = 0; padIdx < track.drum.pads.length; padIdx++) {
-            const pad = track.drum.pads[padIdx]
-            if (!pad.buffer) continue
-            const wavData = encodeAudioBufferWAV(pad.buffer)
-            zip.file(padZipName(trackIdx, padIdx), wavData.buffer as ArrayBuffer, { compression: 'STORE' })
-          }
-        }
-        for (let clipIdx = 0; clipIdx < track.clips.length; clipIdx++) {
-          const clip = track.clips[clipIdx]
-          if (isPatternClip(clip)) continue
-          
-          let audioFileName: string
-          if (bufferMap.has(clip.buffer)) {
-            audioFileName = bufferMap.get(clip.buffer)!
-          } else {
-            audioFileName = `audio_${trackIdx}_${clipIdx}.wav`
-            bufferMap.set(clip.buffer, audioFileName)
-            
-            const wavData = encodeAudioBufferWAV(clip.buffer)
-            zip.file(audioFileName, wavData.buffer as ArrayBuffer, { compression: 'STORE' })
-          }
-          
-          const progress = 10 + ((trackIdx * track.clips.length + clipIdx + 1) / 
-            trackStates.reduce((sum, t) => sum + t.clips.length, 0)) * 80
-          setUploadProgress(progress)
-        }
-      }
-      
-      setExportProgress('Empaquetando...')
-      setUploadProgress(90)
-      
-      const blob = await zip.generateAsync({ 
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
-      })
-      
+      const blob = await buildProjectArchiveBlob(currentProjectName)
       setExportProgress('Descargando...')
       setUploadProgress(95)
-      
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -1600,14 +1737,14 @@ function App() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      
       setUploadProgress(100)
-      
       setToastMessage(`✅ Proyecto descargado: ${currentProjectName}`)
       setShowToast(true)
       setTimeout(() => setShowToast(false), 3000)
+      setProjectDirty(false)
+      setProjectFileName(fileName)
+      armDirtySoon()
       await registerSavedProject(currentProjectName, fileName)
-      
       console.log(`[Save] Project downloaded: ${currentProjectName}`)
     } catch (err: any) {
       console.error('[Save] Error:', err)
@@ -1645,8 +1782,12 @@ function App() {
       currentProjectIdRef.current = resolvedId
       setCurrentProjectId(resolvedId)
       if (opts?.fileHandle) {
+        currentFileHandleRef.current = opts.fileHandle
         setCurrentFileHandle(opts.fileHandle)
         void persistFileHandle(resolvedId, opts.fileHandle)
+        void queryWritePermission(opts.fileHandle).then((status) => {
+          setFileHandleUnsaved(status !== 'granted')
+        })
       }
       
       setUploadProgress(20)
@@ -1700,6 +1841,8 @@ function App() {
           kind: trackKindOf(t.kind),
           drum,
           ...hydrateTrackAudio(t),
+          ...hydrateTrackMetronome(t, trackKindOf(t.kind)),
+          ...hydrateTrackTempoMap(t, trackKindOf(t.kind)),
           clips: clips.filter(c => c !== null) as Clip[]
         }
       }))
@@ -1709,7 +1852,7 @@ function App() {
         return
       }
       
-      setBpm(projectData.bpm || 120)
+      setBpm(clampBpm(Number(projectData.bpm) || 120))
       const loadedPitch = clampPitchSemitones(Number(projectData.pitchSemitones) || 0)
       const loadedRate = clampTempoRate(Number(projectData.tempoRate) || 1)
       Tone.getTransport().bpm.value = effectiveBpm(projectData.bpm || 120, loadedRate)
@@ -1730,7 +1873,10 @@ function App() {
       reconnectAllClips(withMetro)
       setTrackStates(withMetro)
       bpmManuallySetRef.current = sessionHasAudio(withMetro)
-      setCurrentProjectName(projectData.name || 'Proyecto sin título')
+      setCurrentProjectName(projectData.name || baseNameFromMusicalia(file.name) || UNTITLED_PROJECT_NAME)
+      setProjectFileName(opts?.fileHandle?.name || file.name)
+      quietDirty()
+      armDirtySoon(800)
       
       setUploadProgress(100)
       setToastMessage('Proyecto cargado desde tu computadora')
@@ -1871,6 +2017,7 @@ function App() {
       }
       
       const countInSeconds = exportIncludeCountIn ? getCountInSeconds() : 0
+      const exportMeter = currentMetronomeMeter()
       const clipEnds = effectiveIndices.flatMap(i =>
         isMetronomeTrack(trackStates[i])
           ? []
@@ -1879,7 +2026,7 @@ function App() {
       const maxDuration = clipEnds.length > 0
         ? Math.max(...clipEnds)
         : (effectiveIndices.some(i => shouldExportMetronome(trackStates[i]))
-          ? countInBars * DEFAULT_BEATS_PER_BAR * (60 / Math.max(1, bpm)) * 4
+          ? countInBars * barDurationSeconds(bpm, exportMeter) * 4
           : 0)
       const totalDuration = maxDuration + countInSeconds
       const sampleRate = effectiveIndices
@@ -1896,7 +2043,8 @@ function App() {
         if (exportIncludeCountIn) {
           renderCountInClicksOffline(offlineContext, offlineContext.destination, {
             bpm,
-            beatsPerBar: DEFAULT_BEATS_PER_BAR,
+            beatsPerBar: pulsesPerBar(exportMeter, bpm),
+            meter: exportMeter,
             countInBars,
             volume: 0.5
           })
@@ -1913,7 +2061,9 @@ function App() {
           if (shouldExportMetronome(track)) {
             renderMetronomeClicksOffline(offlineContext, gainNode, {
               bpm,
-              beatsPerBar: DEFAULT_BEATS_PER_BAR,
+              beatsPerBar: pulsesPerBar(exportMeter, bpm),
+              meter: exportMeter,
+              tempoMap: track.tempoMap,
               songEnd: maxDuration,
               countInSeconds,
               volume: track.volume
@@ -1965,7 +2115,8 @@ function App() {
           if (exportIncludeCountIn) {
             renderCountInClicksOffline(offlineContext, offlineContext.destination, {
               bpm,
-              beatsPerBar: DEFAULT_BEATS_PER_BAR,
+              beatsPerBar: pulsesPerBar(exportMeter, bpm),
+              meter: exportMeter,
               countInBars,
               volume: 0.5
             })
@@ -1978,7 +2129,9 @@ function App() {
           if (shouldExportMetronome(track)) {
             renderMetronomeClicksOffline(offlineContext, gainNode, {
               bpm,
-              beatsPerBar: DEFAULT_BEATS_PER_BAR,
+              beatsPerBar: pulsesPerBar(exportMeter, bpm),
+              meter: exportMeter,
+              tempoMap: track.tempoMap,
               songEnd: maxDuration,
               countInSeconds,
               volume: track.volume
@@ -2178,9 +2331,28 @@ function App() {
       live.el.style.width = `${(Math.max(0.05, elapsed) / layoutMax) * 100}%`
     }
     if (live.canvas && live.capture.peaks.length) {
-      const width = Math.max(40, Math.floor(live.el?.getBoundingClientRect().width || 40))
+      const dpr = Math.max(1, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
+      const host = live.el
+      const hostRect = host?.getBoundingClientRect()
+      const port = host?.closest('.lanes-scroll-content') as HTMLElement | null
+      const portRect = port?.getBoundingClientRect()
+      const visibleLeft = hostRect && portRect
+        ? Math.max(0, portRect.left - hostRect.left - 64)
+        : 0
+      const visibleRight = hostRect && portRect
+        ? Math.min(hostRect.width, portRect.right - hostRect.left + 64)
+        : (hostRect?.width || 40)
+      const cssW = Math.max(40, Math.floor(visibleRight - visibleLeft))
+      const cssH = Math.max(24, Math.floor(hostRect?.height || 64))
+      const width = Math.min(8192, Math.round(cssW * dpr))
+      const height = Math.min(8192, Math.round(cssH * dpr))
+      live.canvas.style.left = `${Math.max(0, visibleLeft)}px`
+      live.canvas.style.width = `${cssW}px`
+      live.canvas.style.height = `${cssH}px`
+      live.canvas.style.position = 'absolute'
+      live.canvas.style.top = '0'
       if (live.canvas.width !== width) live.canvas.width = width
-      if (live.canvas.height !== 64) live.canvas.height = 64
+      if (live.canvas.height !== height) live.canvas.height = height
       drawRecordingPeaks(live.canvas, live.capture.peaks)
     }
   }
@@ -3054,6 +3226,9 @@ function App() {
 
   const handleClipClick = (e: React.MouseEvent, trackIndex: number, clipId: string) => {
     e.stopPropagation()
+    const pointer = clipPointerSelectRef.current
+    clipPointerSelectRef.current = null
+    if (marqueeLiveRef.current.didDrag) return
     if (!isClickGesture(dragLiveRef.current.distance)) return
     
     const clip = trackStates[trackIndex].clips.find(c => c.id === clipId)
@@ -3072,18 +3247,17 @@ function App() {
       return
     }
 
-    const cmd = e.ctrlKey || e.metaKey
-    if (cmd || e.shiftKey) {
-      setSelectedClipIds(prev => mergeSelection(prev, [clipId], 'toggle'))
-    } else {
-      setSelectedClipIds(new Set([clipId]))
-      if (!(e.target as HTMLElement).closest('.clip-trim-handle')) {
-        const lane = (e.currentTarget as HTMLElement).closest('.track-content') as HTMLElement | null
-        if (lane) {
-          const rect = lane.getBoundingClientRect()
-          const raw = clickTimeFromX(e.clientX, rect.left, rect.width, timelineMaxRef.current || 100)
-          seekToPositionRef.current(raw, false)
-        }
+    const next = applyClipClickSelect(selectedClipIdsRef.current, clipId, e, pointer?.clipId === clipId ? pointer.action : null)
+    if (next) {
+      selectedClipIdsRef.current = next
+      setSelectedClipIds(next)
+    }
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey && !(e.target as HTMLElement).closest('.clip-trim-handle')) {
+      const lane = (e.currentTarget as HTMLElement).closest('.track-content') as HTMLElement | null
+      if (lane) {
+        const rect = lane.getBoundingClientRect()
+        const raw = clickTimeFromX(e.clientX, rect.left, rect.width, timelineMaxRef.current || 100)
+        seekToPositionRef.current(raw, false)
       }
     }
     isDraggingClipRef.current = false
@@ -3098,12 +3272,16 @@ function App() {
     const clip = tracks[trackIndex]?.clips.find(c => c.id === clipId)
     if (!clip) return
 
-    let selected = selectedClipIdsRef.current
-    if (!selected.has(clipId)) {
-      const cmd = e.ctrlKey || e.metaKey
-      selected = (e.shiftKey || cmd) ? new Set(selected).add(clipId) : new Set([clipId])
-      setSelectedClipIds(selected)
+    if (isMarqueeModifier(e)) {
+      startMarqueeRef.current(e, { fromClip: true })
+      return
     }
+
+    const applied = applyClipPointerSelect(selectedClipIdsRef.current, clipId, e)
+    clipPointerSelectRef.current = { clipId, action: applied.action }
+    const selected = applied.next
+    selectedClipIdsRef.current = selected
+    if (applied.action !== 'kept') setSelectedClipIds(selected)
 
     const target = e.currentTarget
     target.setPointerCapture(e.pointerId)
@@ -3113,7 +3291,7 @@ function App() {
     const startY = e.clientY
     const startOffset = clip.offsetSeconds
     const startTrack = trackIndex
-    const startedWithAlt = e.altKey
+    const startedWithDuplicate = isDuplicateDragModifier(e)
     const zoom = verticalZoom
     const snapOn = snapEnabled
     const magnetOn = magnetEnabledRef.current
@@ -3154,7 +3332,7 @@ function App() {
     dragLiveRef.current = {
       tempOffset: startOffset,
       tempTrack: startTrack,
-      threshold: startedWithAlt,
+      threshold: startedWithDuplicate,
       distance: 0,
       timeDelta: 0,
       trackDelta: 0,
@@ -3296,7 +3474,7 @@ function App() {
 
       let working = currentTracks
       let workingSelected = selected
-      if (startedWithAlt && live.distance >= 5) {
+      if (startedWithDuplicate && live.distance >= 5) {
         working = currentTracks.map(track => ({ ...track, clips: [...track.clips] }))
         workingSelected = new Set(selected)
         selected.forEach(id => {
@@ -3467,6 +3645,18 @@ function App() {
     setSelectedTrack(trackIndex)
   }
 
+  const handleSelectFromHereToEnd = (trackIndex: number, clipId: string) => {
+    const clip = trackStatesRef.current[trackIndex]?.clips.find((c) => c.id === clipId)
+    if (!clip) return
+    const ids = clipsFromHereToEnd(trackStatesRef.current, clip.offsetSeconds)
+    setSelectedClipIds(new Set(ids))
+  }
+
+  const handleSelectAtTimeAllTracks = (time: number) => {
+    const ids = clipsOverlappingTime(trackStatesRef.current, time)
+    setSelectedClipIds(new Set(ids))
+  }
+
   const handleAlignSelectedStarts = () => {
     const selected = selectedClipIdsRef.current
     if (selected.size < 2) return
@@ -3596,7 +3786,11 @@ function App() {
       
       if (e.key === 'Escape') {
         e.preventDefault()
-        if (trackDeleteConfirm) {
+        if (metroAlignArmed) {
+          setMetroAlignArmed(false)
+        } else if (metroSettingsOpen) {
+          setMetroSettingsOpen(false)
+        } else if (trackDeleteConfirm) {
           setTrackDeleteConfirm(null)
         } else if (contextMenu) {
           closeContextMenu()
@@ -3699,7 +3893,7 @@ function App() {
     
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedClipIds, trackStates, clipboard, undoStack, redoStack, contextMenu, trackDeleteConfirm, selectedAutoPoint, drumEditorTrack, selectedTrack])
+  }, [selectedClipIds, trackStates, clipboard, undoStack, redoStack, contextMenu, trackDeleteConfirm, selectedAutoPoint, drumEditorTrack, selectedTrack, metroSettingsOpen, metroAlignArmed])
 
   useEffect(() => {
     const mediaSession = typeof navigator !== 'undefined' ? navigator.mediaSession : null
@@ -3738,12 +3932,92 @@ function App() {
     }
   }, [])
 
-  const handleBpmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newBpm = parseInt(e.target.value) || 120
+  const applySessionBpm = (next: number) => {
+    const newBpm = clampBpm(next)
     bpmManuallySetRef.current = true
+    bpmRef.current = newBpm
     setBpm(newBpm)
     Tone.getTransport().bpm.value = effectiveBpm(newBpm, tempoRateRef.current)
     if (isPlayingRef.current) scheduleMetronome(getSongTime())
+  }
+
+  const handleBpmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    applySessionBpm(parseBpmInput(e.target.value))
+  }
+
+  const handleTapTempo = () => {
+    tapTimesRef.current = appendTap(tapTimesRef.current, performance.now())
+    const tapped = tapTempoFromTimestamps(tapTimesRef.current)
+    setTapFlash(true)
+    window.setTimeout(() => setTapFlash(false), 140)
+    if (tapped != null) applySessionBpm(tapped)
+  }
+
+  const patchMetronomeMeter = (patch: Partial<MetronomeMeter>) => {
+    const idx = findMetronomeIndex(trackStatesRef.current)
+    if (idx < 0) return
+    const tracks = [...trackStatesRef.current]
+    const current = meterOf(tracks[idx])
+    const nextMeter = normalizeMetronomeMeter({ ...current, ...patch })
+    tracks[idx] = { ...tracks[idx], metronome: nextMeter }
+    trackStatesRef.current = tracks
+    setTrackStates(tracks)
+    if (isPlayingRef.current) scheduleMetronome(getSongTime())
+  }
+
+  const patchTempoMap = (updater: (map: TempoMap) => TempoMap, opts?: { undo?: boolean }) => {
+    const idx = findMetronomeIndex(trackStatesRef.current)
+    if (idx < 0) return
+    const current = trackStatesRef.current[idx].tempoMap
+    if (!current) return
+    if (opts?.undo !== false) saveUndo()
+    const tracks = [...trackStatesRef.current]
+    tracks[idx] = { ...tracks[idx], tempoMap: updater(current) }
+    trackStatesRef.current = tracks
+    setTrackStates(tracks)
+    if (isPlayingRef.current) scheduleMetronome(getSongTime())
+  }
+
+  const handleTempoMove = (id: string, time: number) => {
+    patchTempoMap((map) => moveBeatTime(map, id, time), { undo: false })
+  }
+
+  const handleTempoAdd = (time: number) => {
+    patchTempoMap((map) => addBeatAt(map, time))
+  }
+
+  const handleTempoRemove = (id: string) => {
+    patchTempoMap((map) => removeBeat(map, id))
+  }
+
+  const handleTempoDownbeat = (id: string) => {
+    patchTempoMap((map) => setDownbeatAt(map, id))
+  }
+
+  const setMetronomePhaseMs = (ms: number) => {
+    const meter = currentMetronomeMeter()
+    const bar = barDurationSeconds(bpmRef.current, meter)
+    patchMetronomeMeter({ phaseSeconds: wrapPhase(Number(ms) / 1000, bar) })
+  }
+
+  const alignMetronomeAt = (timeSeconds: number) => {
+    const idx = findMetronomeIndex(trackStatesRef.current)
+    const track = idx >= 0 ? trackStatesRef.current[idx] : undefined
+    const meter = meterOf(track)
+    if (isFollowEnabled(meter, track?.tempoMap) && track?.tempoMap) {
+      patchTempoMap((map) => setDownbeatAtTime(map, timeSeconds))
+      setMetroAlignArmed(false)
+      setToastMessage('1 alineado al mapa de tempo')
+      setShowToast(true)
+      window.setTimeout(() => setShowToast(false), 2500)
+      return
+    }
+    const phase = phaseFromDownbeat(timeSeconds, bpmRef.current, meter)
+    patchMetronomeMeter({ phaseSeconds: phase })
+    setMetroAlignArmed(false)
+    setToastMessage('Metrónomo alineado al 1')
+    setShowToast(true)
+    window.setTimeout(() => setShowToast(false), 2500)
   }
 
   const handleLaneClick = async (trackIndex: number) => {
@@ -4104,29 +4378,46 @@ function App() {
     setTrackStates(newTrackStates)
   }
 
+  const applyDetectedTempoMap = (map: TempoMap) => {
+    const idx = findMetronomeIndex(trackStatesRef.current)
+    if (idx < 0 || !hasTempoMap(map)) return
+    const tracks = [...trackStatesRef.current]
+    tracks[idx] = { ...tracks[idx], tempoMap: map }
+    trackStatesRef.current = tracks
+    setTrackStates(tracks)
+    if (isPlayingRef.current) scheduleMetronome(getSongTime())
+  }
+
   const maybeApplyDetectedBpm = async (buffer: AudioBuffer) => {
     const hasExistingAudio = sessionHasAudio(trackStatesRef.current)
     if (hasExistingAudio) return
-    const bpmResult = await detectBPM(buffer)
+    const env = envelopeForMix(buffer)
+    const detectedBpm = env ? bpmFromEnvelope(env) : null
     if (!shouldApplyDetectedBpm({
       hasExistingAudio,
       bpmManuallySet: bpmManuallySetRef.current,
-      detectedBpm: bpmResult.bpm
+      detectedBpm
     })) {
-      if (!bpmResult.bpm && !bpmManuallySetRef.current) {
+      if (!detectedBpm && !bpmManuallySetRef.current) {
         console.log('[BPM] Detection failed, keeping current BPM')
         setToastMessage('No se pudo detectar el tempo')
         setShowToast(true)
         setTimeout(() => setShowToast(false), 3000)
       }
-      return
+    } else {
+      console.log('[BPM] Detected:', detectedBpm)
+      const detected = clampBpm(detectedBpm as number)
+      setBpm(detected)
+      Tone.getTransport().bpm.value = effectiveBpm(detected, tempoRateRef.current)
+      setToastMessage(`Tempo detectado: ${formatBpm(detected)} BPM`)
+      setShowToast(true)
+      setTimeout(() => setShowToast(false), 4000)
     }
-    console.log('[BPM] Detected:', bpmResult.bpm)
-    setBpm(bpmResult.bpm as number)
-    Tone.getTransport().bpm.value = effectiveBpm(bpmResult.bpm as number, tempoRateRef.current)
-    setToastMessage(`Tempo detectado: ${bpmResult.bpm} BPM`)
-    setShowToast(true)
-    setTimeout(() => setShowToast(false), 4000)
+    const bpmHint = detectedBpm ?? bpmRef.current
+    if (env && bpmHint > 0) {
+      const map = await trackBeatsInWorker(env, bpmHint)
+      if (map) applyDetectedTempoMap(map)
+    }
   }
 
   const processStemSeparation = async (
@@ -4812,6 +5103,10 @@ function App() {
   const handleTrackReorderMouseDown = (e: React.MouseEvent, trackIndex: number) => {
     if (e.button !== 0) return
     if (renamingTrackRef.current === trackIndex) return
+    if (isMarqueeModifier(e)) {
+      startMarqueeRef.current(e)
+      return
+    }
     e.preventDefault()
     const from = trackIndex
     const originY = e.clientY
@@ -4921,7 +5216,14 @@ function App() {
     if (target.closest('.clip-wrapper, .clip-trim-handle, .loop-marker')) return
     if (isDraggingLoop || isDraggingClipRef.current) return
     if (marqueeLiveRef.current.didDrag) return
-    seekToPosition(timeFromClientX(e.clientX, e.currentTarget), e.shiftKey)
+    const time = timeFromClientX(e.clientX, e.currentTarget)
+    if (metroAlignArmed) {
+      e.preventDefault()
+      e.stopPropagation()
+      alignMetronomeAt(time)
+      return
+    }
+    seekToPosition(time, e.shiftKey)
     if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
       setSelectedClipIds(new Set())
     }
@@ -4976,6 +5278,10 @@ function App() {
     const rect = ruler.getBoundingClientRect()
     const layoutMax = timelineMaxRef.current || 100
     const originTime = clickTimeFromX(e.clientX, rect.left, rect.width, layoutMax)
+    if (metroAlignArmed) {
+      alignMetronomeAt(originTime)
+      return
+    }
     const currentStart = tempLoopStart ?? loopStart
     const currentEnd = tempLoopEnd ?? loopEnd
     const hit = hitTestLoop(e.clientX, rect.left, rect.width, layoutMax, currentStart, currentEnd)
@@ -5056,50 +5362,79 @@ function App() {
     setLoopHoverHit(hitTestLoop(e.clientX, rect.left, rect.width, layoutMax, start, end))
   }
 
-  const handleTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    const target = e.target as HTMLElement
-    if (target.closest('.clip-wrapper, .clip-trim-handle, .loop-marker')) return
-
+  const startMarquee = (
+    e: { clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; button?: number; preventDefault?: () => void },
+    opts?: { fromClip?: boolean }
+  ) => {
+    if (e.button != null && e.button !== 0) return
     const scroller = lanesColumnRef.current?.querySelector('.lanes-scroll-content') as HTMLElement | null
-    const startX = e.clientX
-    const startY = e.clientY
+    if (!scroller) return
+    if (!opts?.fromClip) e.preventDefault?.()
+
+    const origin = contentPointFromClient(scroller, e.clientX, e.clientY)
     marqueeLiveRef.current = {
       active: true,
       didDrag: false,
-      x0: startX,
-      y0: startY,
-      x1: startX,
-      y1: startY,
+      x0: origin.x,
+      y0: origin.y,
+      x1: origin.x,
+      y1: origin.y,
+      pointerX: e.clientX,
+      pointerY: e.clientY,
       additive: e.shiftKey,
-      toggle: e.ctrlKey || e.metaKey
+      toggle: e.ctrlKey || e.metaKey,
+      fromClip: !!opts?.fromClip
+    }
+
+    const stopScrollTick = () => {
+      if (marqueeScrollRafRef.current != null) {
+        cancelAnimationFrame(marqueeScrollRafRef.current)
+        marqueeScrollRafRef.current = null
+      }
     }
 
     const updateBox = () => {
       const live = marqueeLiveRef.current
-      if (!scroller || !live.active || isClickGesture(Math.hypot(live.x1 - live.x0, live.y1 - live.y0))) {
+      if (!live.active || isClickGesture(Math.hypot(live.x1 - live.x0, live.y1 - live.y0))) {
         setMarqueeBox(null)
         return
       }
-      const sr = scroller.getBoundingClientRect()
-      const left = Math.min(live.x0, live.x1) - sr.left
-      const top = Math.min(live.y0, live.y1) - sr.top
       setMarqueeBox({
-        left,
-        top,
+        left: Math.min(live.x0, live.x1) - scroller.scrollLeft,
+        top: Math.min(live.y0, live.y1) - scroller.scrollTop,
         width: Math.abs(live.x1 - live.x0),
         height: Math.abs(live.y1 - live.y0)
       })
     }
 
+    const applyPointer = (clientX: number, clientY: number) => {
+      const live = marqueeLiveRef.current
+      live.pointerX = clientX
+      live.pointerY = clientY
+      const next = contentPointFromClient(scroller, clientX, clientY)
+      live.x1 = next.x
+      live.y1 = next.y
+    }
+
+    const tickScroll = () => {
+      marqueeScrollRafRef.current = null
+      const live = marqueeLiveRef.current
+      if (!live.active) return
+      const delta = marqueeEdgeScrollDelta(scroller.getBoundingClientRect(), live.pointerX, live.pointerY)
+      if (delta.dx || delta.dy) {
+        scroller.scrollLeft += delta.dx
+        scroller.scrollTop += delta.dy
+        if (delta.dy) syncVerticalScroll('lanes')
+      }
+      applyPointer(live.pointerX, live.pointerY)
+      updateBox()
+      marqueeScrollRafRef.current = requestAnimationFrame(tickScroll)
+    }
+
     const onMove = (ev: MouseEvent) => {
-      marqueeLiveRef.current.x1 = ev.clientX
-      marqueeLiveRef.current.y1 = ev.clientY
-      if (dragRafRef.current == null) {
-        dragRafRef.current = requestAnimationFrame(() => {
-          dragRafRef.current = null
-          updateBox()
-        })
+      applyPointer(ev.clientX, ev.clientY)
+      if (marqueeScrollRafRef.current == null) {
+        marqueeScrollRafRef.current = requestAnimationFrame(tickScroll)
       }
     }
 
@@ -5107,21 +5442,23 @@ function App() {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.userSelect = ''
+      stopScrollTick()
       if (dragRafRef.current != null) {
         cancelAnimationFrame(dragRafRef.current)
         dragRafRef.current = null
       }
+      applyPointer(ev.clientX, ev.clientY)
       const live = marqueeLiveRef.current
-      live.x1 = ev.clientX
-      live.y1 = ev.clientY
       live.active = false
       setMarqueeBox(null)
       const distance = Math.hypot(live.x1 - live.x0, live.y1 - live.y0)
       const lane = (ev.target as HTMLElement | null)?.closest?.('.track-content') as HTMLElement | null
-        ?? (e.currentTarget as HTMLElement)
 
       if (isClickGesture(distance)) {
         live.didDrag = false
+        if (live.fromClip) return
+        const upOnClip = Boolean((ev.target as HTMLElement | null)?.closest?.('.clip-wrapper'))
+        if (upOnClip) return
         if (lane) {
           const rect = lane.getBoundingClientRect()
           const raw = clickTimeFromX(ev.clientX, rect.left, rect.width, timelineMaxRef.current || 100)
@@ -5134,7 +5471,13 @@ function App() {
       }
 
       live.didDrag = true
-      const band = marqueeClientRect(live.x0, live.y0, live.x1, live.y1)
+      const sr = scroller.getBoundingClientRect()
+      const band = marqueeClientRect(
+        sr.left + live.x0 - scroller.scrollLeft,
+        sr.top + live.y0 - scroller.scrollTop,
+        sr.left + live.x1 - scroller.scrollLeft,
+        sr.top + live.y1 - scroller.scrollTop
+      )
       const hit: string[] = []
       document.querySelectorAll('.clip-wrapper[data-clip-id]').forEach(node => {
         const el = node as HTMLElement
@@ -5150,6 +5493,17 @@ function App() {
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
     document.body.style.userSelect = 'none'
+    if (marqueeScrollRafRef.current == null) {
+      marqueeScrollRafRef.current = requestAnimationFrame(tickScroll)
+    }
+  }
+  startMarqueeRef.current = startMarquee
+
+  const handleTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    if (target.closest('.clip-wrapper, .clip-trim-handle, .loop-marker')) return
+    startMarquee(e)
   }
 
   const clearLoop = () => {
@@ -5281,6 +5635,8 @@ function App() {
             kind: trackKindOf(t.kind),
             drum: projectDrumPayload(t.drum, i),
             ...serializeTrackAudio(t),
+            ...serializeTrackMetronome(t),
+            ...serializeTrackTempoMap(t),
             clips: savedClips
           }
         }))
@@ -5319,7 +5675,12 @@ function App() {
           overlayPlayer: false,
           clickSource: track && !track.mute ? 'track' : 'none',
           destinationIsTrack: metronomeEngineRef.current.destinationIsTrack,
-          scheduled: lastScheduledMetronomeEvents.slice()
+          scheduled: lastScheduledMetronomeEvents.slice(),
+          bpm: bpmRef.current,
+          meter: meterOf(track),
+          followMode: meterOf(track).followMode,
+          tempoMapBeats: track?.tempoMap?.beats.length ?? 0,
+          localBpm: track?.tempoMap ? localBpmAt(track.tempoMap, playheadPositionRef.current) : null
         }
       },
       unmute: () => {
@@ -5333,7 +5694,16 @@ function App() {
         if (!trackStatesRef.current[idx].mute) handleMuteToggle(idx)
       },
       play: () => handlePlayRef.current(),
-      getSchedule: () => lastScheduledMetronomeEvents.slice()
+      getSchedule: () => lastScheduledMetronomeEvents.slice(),
+      setBpm: (n: number) => applySessionBpm(n),
+      setMeter: (patch: Partial<MetronomeMeter>) => patchMetronomeMeter(patch),
+      alignAt: (time: number) => alignMetronomeAt(time),
+      setTempoMap: (raw: unknown) => {
+        const map = hydrateTempoMap(raw)
+        if (!map) return false
+        applyDetectedTempoMap(map)
+        return true
+      }
     }
     ;(window as unknown as { __musicaliaMetronome?: typeof api }).__musicaliaMetronome = api
     return () => {
@@ -5355,9 +5725,27 @@ function App() {
           }))
         ),
       getSelection: () => Array.from(selectedClipIdsRef.current),
+      getProjectTitle: () => displayProjectName(currentProjectName, projectFileName),
+      isProjectDirty: () => projectDirty,
+      getTabTitle: () => document.title,
+      getProjectFileName: () => projectFileName,
+      renameProject: (name: string) => applyProjectName(name),
+      markProjectDirty: () => setProjectDirty(true),
+      markProjectClean: () => {
+        setProjectDirty(false)
+      },
       select: (ids: string[], mode: 'replace' | 'add' | 'toggle' = 'replace') => {
         setSelectedClipIds((prev) => mergeSelection(prev, ids, mode))
       },
+      selectFromHereToEnd: (clipId: string) => {
+        for (let ti = 0; ti < trackStatesRef.current.length; ti++) {
+          if (trackStatesRef.current[ti].clips.some((c) => c.id === clipId)) {
+            handleSelectFromHereToEnd(ti, clipId)
+            return
+          }
+        }
+      },
+      selectAtTime: (time: number) => handleSelectAtTimeAllTracks(time),
       applyDelta: (seconds: number) => applySelectionTimeDelta(seconds),
       getMagnet: () => magnetEnabledRef.current,
       setMagnet: (on: boolean) => setMagnetEnabled(!!on),
@@ -5411,7 +5799,104 @@ function App() {
         trackStatesRef.current = next
         setTrackStates(next)
         return { ids, offsets: places.map((p) => p.offset), tracks: places.map((p) => p.trackIndex) }
-      }
+      },
+      seedGrid: async () => {
+        await ensureAudio()
+        const raw = nativeAudioContext(Tone.getContext().rawContext)
+        const sr = raw.sampleRate
+        const length = Math.max(8, Math.floor(sr * 0.55))
+        const buffer = raw.createBuffer(1, length, sr)
+        const channel = buffer.getChannelData(0)
+        for (let i = 0; i < length; i++) {
+          channel[i] = Math.sin((2 * Math.PI * 330 * i) / sr) * 0.35
+        }
+        const targets = trackStatesRef.current
+          .map((track, index) => ({ track, index }))
+          .filter(({ track }) => !isMetronomeTrack(track) && track.kind !== 'drum')
+        if (targets.length < 3) throw new Error('need three audio tracks')
+        const places = [
+          { trackIndex: targets[0].index, offset: 0.2 },
+          { trackIndex: targets[0].index, offset: 1.3 },
+          { trackIndex: targets[1].index, offset: 0.4 },
+          { trackIndex: targets[1].index, offset: 1.6 },
+          { trackIndex: targets[2].index, offset: 0.9 }
+        ]
+        const next = trackStatesRef.current.map((track) => ({ ...track, clips: [...track.clips] }))
+        const ids: string[] = []
+        places.forEach((place, i) => {
+          const player = makeClipPlayer()
+          player.buffer = new Tone.ToneAudioBuffer(buffer)
+          player.loop = false
+          const dest = trackGainsRef.current[place.trackIndex]
+          if (dest) player.connect(dest)
+          const id = `clip-grid-${place.trackIndex}-${i}`
+          next[place.trackIndex].clips.push({
+            player,
+            fileName: `Grid ${i + 1}`,
+            isPlaying: false,
+            buffer,
+            startPosition: 0,
+            offsetSeconds: place.offset,
+            id,
+            sourceStart: 0,
+            duration: buffer.duration
+          })
+          ids.push(id)
+        })
+        trackStatesRef.current = next
+        setTrackStates(next)
+        return { ids, offsets: places.map((p) => p.offset), tracks: places.map((p) => p.trackIndex) }
+      },
+      seedWaveform: async () => {
+        await ensureAudio()
+        const raw = nativeAudioContext(Tone.getContext().rawContext)
+        const sr = raw.sampleRate
+        const seconds = 2.4
+        const length = Math.max(16, Math.floor(sr * seconds))
+        const buffer = raw.createBuffer(1, length, sr)
+        const channel = buffer.getChannelData(0)
+        for (let i = 0; i < length; i++) {
+          const t = i / sr
+          const env = Math.min(1, t * 8) * Math.min(1, (seconds - t) * 3)
+          const tone = Math.sin(2 * Math.PI * 220 * t)
+            + 0.45 * Math.sin(2 * Math.PI * 440 * t)
+            + 0.2 * Math.sin(2 * Math.PI * 880 * t)
+          const wobble = 0.35 * Math.sin(2 * Math.PI * 3.5 * t)
+          channel[i] = Math.max(-1, Math.min(1, (tone * (0.55 + wobble) * env) * 0.7))
+        }
+        const target = trackStatesRef.current
+          .map((track, index) => ({ track, index }))
+          .find(({ track }) => !isMetronomeTrack(track) && track.kind !== 'drum')
+        if (!target) throw new Error('need an audio track')
+        const next = trackStatesRef.current.map((track) => ({ ...track, clips: [...track.clips] }))
+        const player = makeClipPlayer()
+        player.buffer = new Tone.ToneAudioBuffer(buffer)
+        player.loop = false
+        const dest = trackGainsRef.current[target.index]
+        if (dest) player.connect(dest)
+        const id = `clip-wave-demo-${target.index}`
+        next[target.index].clips = [{
+          player,
+          fileName: 'Wave demo',
+          isPlaying: false,
+          buffer,
+          startPosition: 0,
+          offsetSeconds: 0.15,
+          id,
+          sourceStart: 0,
+          duration: buffer.duration
+        }]
+        trackStatesRef.current = next
+        setTrackStates(next)
+        return { id, trackIndex: target.index, duration: buffer.duration }
+      },
+      setZoom: (zoom: number) => {
+        const next = clampHorizontalZoom(zoom)
+        horizontalZoomRef.current = next
+        setHorizontalZoom(next)
+        return next
+      },
+      getZoom: () => horizontalZoomRef.current
     }
     ;(window as unknown as { __musicaliaClips?: typeof api }).__musicaliaClips = api
     return () => {
@@ -5512,7 +5997,7 @@ function App() {
 
   return (
     <div
-      className={`app${fileDragActive ? ' file-drag' : ''}`}
+      className={`app${fileDragActive ? ' file-drag' : ''}${metroAlignArmed ? ' metro-align' : ''}`}
       data-app-commits={appCommitCountRef.current}
       onDragEnter={handleAppDragEnter}
       onDragOver={handleAppDragOver}
@@ -5542,6 +6027,55 @@ function App() {
           }
         }}
       />
+
+      <div className="app-titlebar">
+        <span className="app-wordmark">Musicalia</span>
+        <div
+          className={`project-title${projectDirty ? ' dirty' : ''}${renamingProject ? ' editing' : ''}`}
+          data-testid="project-title"
+          data-dirty={projectDirty ? 'true' : 'false'}
+          title={projectFileName || suggestedMusicaliaFileName(shownProjectName)}
+        >
+          {renamingProject ? (
+            <input
+              ref={projectNameInputRef}
+              className="project-title-input"
+              data-testid="project-title-input"
+              value={projectNameDraft}
+              aria-label="Nombre del proyecto"
+              onChange={(e) => setProjectNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitProjectRename()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  cancelProjectRename()
+                }
+              }}
+              onBlur={() => commitProjectRename()}
+            />
+          ) : (
+            <button
+              type="button"
+              className="project-title-name"
+              data-testid="project-title-name"
+              onDoubleClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                beginProjectRename()
+              }}
+            >
+              {shownProjectName}
+            </button>
+          )}
+          {projectDirty && (
+            <span className="project-title-dot" data-testid="project-title-dirty" aria-label="Cambios sin guardar">•</span>
+          )}
+        </div>
+        <span className="app-titlebar-spacer" aria-hidden="true" />
+      </div>
       
       <div className="transport-bar">
         <div className="tb-group tb-project" role="group" aria-label="Proyecto">
@@ -5568,12 +6102,25 @@ function App() {
             </button>
           )}
           <button
-            className="header-btn"
+            className={`header-btn${fileHandleUnsaved ? ' unsaved' : ''}`}
+            data-testid="save-button"
             onClick={() => handleSaveToLocal(false)}
-            title="Guardar proyecto (Cmd/Ctrl+S, Shift+Cmd/Ctrl+S para guardar como...)"
+            title={fileHandleUnsaved
+              ? 'Hay cambios sin guardar en el archivo (Cmd/Ctrl+S)'
+              : 'Guardar proyecto (Cmd/Ctrl+S)'}
           >
             <IconSave />
-            <span className="btn-label">Guardar</span>
+            <span className="btn-label">Guardar{fileHandleUnsaved ? ' •' : ''}</span>
+          </button>
+          <button
+            className="header-btn"
+            data-testid="save-as-button"
+            onClick={() => handleSaveToLocal(true)}
+            title="Guardar como… (Shift+Cmd/Ctrl+S)"
+            aria-label="Guardar como"
+          >
+            <IconSaveAs />
+            <span className="btn-label">Guardar como…</span>
           </button>
           <button
             className="header-btn"
@@ -5706,7 +6253,39 @@ function App() {
               onChange={handleBpmChange}
               min="20"
               max="300"
+              step="0.1"
+              inputMode="decimal"
+              data-testid="bpm-input"
             />
+            <button
+              type="button"
+              className="bpm-oct"
+              data-testid="bpm-half"
+              title="Dividir el tempo por 2"
+              aria-label="Dividir BPM por 2"
+              onClick={() => applySessionBpm(halfBpm(bpm))}
+            >
+              ÷2
+            </button>
+            <button
+              type="button"
+              className="bpm-oct"
+              data-testid="bpm-double"
+              title="Multiplicar el tempo por 2"
+              aria-label="Multiplicar BPM por 2"
+              onClick={() => applySessionBpm(doubleBpm(bpm))}
+            >
+              ×2
+            </button>
+            <button
+              type="button"
+              className={`bpm-tap ${tapFlash ? 'active' : ''}`}
+              data-testid="bpm-tap"
+              title="TAP tempo: tocá el pulso varias veces"
+              onClick={handleTapTempo}
+            >
+              TAP
+            </button>
             <span
               className="bpm-effective"
               data-testid="bpm-effective"
@@ -5967,6 +6546,60 @@ function App() {
           <button onClick={() => setErrorMessage(null)}>×</button>
         </div>
       )}
+
+      {fileSavePrompt && (
+        <div
+          className="confirm-modal"
+          data-testid="file-save-permission"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setFileSavePrompt(null)
+          }}
+        >
+          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="file-save-permission-title">
+            <h2 id="file-save-permission-title">Chrome necesita permiso para guardar en tu archivo</h2>
+            <p>
+              El clic de Guardar se usó para armar el proyecto y Chrome ya no deja escribir.
+              Tocá un botón para autorizar de nuevo. No se perdió nada: el proyecto sigue en esta sesión.
+            </p>
+            <div className="confirm-actions file-save-prompt-actions">
+              <button
+                type="button"
+                className="modal-button-primary"
+                data-testid="file-save-permit"
+                onClick={retryPermitAndSave}
+              >
+                Permitir y guardar
+              </button>
+              <button
+                type="button"
+                className="confirm-cancel"
+                data-testid="file-save-save-as"
+                onClick={() => {
+                  setFileSavePrompt(null)
+                  void handleSaveToLocal(true)
+                }}
+              >
+                Guardar como…
+              </button>
+              <button
+                type="button"
+                className="confirm-cancel"
+                data-testid="file-save-download"
+                onClick={() => {
+                  const name = `${sanitizeFilename(fileSavePrompt.projectName || currentProjectName) || 'proyecto'}.musicalia`
+                  setFileSavePrompt(null)
+                  void saveFallbackDownload(name)
+                }}
+              >
+                Descargar .musicalia
+              </button>
+              <button type="button" className="confirm-cancel" onClick={() => setFileSavePrompt(null)}>
+                Ahora no
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {uploadProgress > 0 && uploadProgress < 100 && (
         <div className="upload-progress">
@@ -6213,6 +6846,11 @@ function App() {
                   onAislar={handleAislar}
                   onReorderMouseDown={handleTrackReorderMouseDown}
                   onSelectTrackClips={handleSelectTrackClips}
+                  metroSettingsOpen={isMetronomeTrack(trackState) && metroSettingsOpen}
+                  onOpenMetronomeSettings={() => {
+                    setMetroSettingsOpen(true)
+                    setMetroAlignArmed(false)
+                  }}
                 />
                 {fxOpenTracks.includes(trackIndex) && (
                   <div className="fx-side" style={{ height: `${FX_RACK_HEIGHT}px` }}>
@@ -6304,10 +6942,17 @@ function App() {
             className="lanes-scroll-content"
             ref={lanesScrollRef}
             onScroll={() => syncVerticalScroll('lanes')}
+            onMouseDown={(e) => {
+              const target = e.target as HTMLElement
+              if (target.closest('.clip-wrapper, .clip-trim-handle, .loop-marker, .bar-ruler, .chord-ruler, .track-content, .lanes-bottom-pad, .marquee-rect')) return
+              if (e.button !== 0) return
+              startMarquee(e)
+            }}
           >
           {marqueeBox && (
             <div
               className="marquee-rect"
+              data-testid="marquee-rect"
               style={{
                 left: marqueeBox.left,
                 top: marqueeBox.top,
@@ -6340,6 +6985,15 @@ function App() {
             scrollerRef={lanesScrollRef}
             zoom={horizontalZoom}
             bpm={bpm}
+            beatsPerBar={pulsesPerBar(currentMetronomeMeter(), bpm)}
+            pulseSeconds={pulseDurationSeconds(bpm, currentMetronomeMeter())}
+            barSeconds={barDurationSeconds(bpm, currentMetronomeMeter())}
+            phaseSeconds={currentMetronomeMeter().phaseSeconds}
+            mapBeats={rulerMapBeats(
+              trackStates[findMetronomeIndex(trackStates)]?.tempoMap,
+              currentMetronomeMeter(),
+              bpm
+            )}
             layoutMax={getLayoutMax()}
             loopStart={loopStart}
             loopEnd={loopEnd}
@@ -6364,7 +7018,14 @@ function App() {
               trackIndex={trackIndex}
               trackKind={trackState.kind}
               bpm={bpm}
-              beatsPerBar={DEFAULT_BEATS_PER_BAR}
+              beatsPerBar={pulsesPerBar(meterOf(trackState), bpm)}
+              meter={trackState.kind === 'metronome' ? meterOf(trackState) : undefined}
+              tempoMap={trackState.kind === 'metronome' ? trackState.tempoMap : undefined}
+              onTempoMove={handleTempoMove}
+              onTempoAdd={handleTempoAdd}
+              onTempoRemove={handleTempoRemove}
+              onTempoDownbeat={handleTempoDownbeat}
+              onTempoGestureStart={saveUndo}
               hasClips={trackState.clips.length > 0}
               isAnyClipPlaying={trackState.clips.some(c => c.isPlaying)}
               height={88 * verticalZoom}
@@ -6437,6 +7098,11 @@ function App() {
             )
             })
           })()}
+            <div
+              className="lanes-bottom-pad"
+              data-testid="lanes-bottom-pad"
+              onMouseDown={handleTrackMouseDown}
+            />
             <div className="playhead" ref={playheadElRef} aria-hidden="true">
               <span className="playhead-cap" />
             </div>
@@ -6467,6 +7133,30 @@ function App() {
           >
             {contextMenu.kind === 'header' ? (
               <>
+                {isMetronomeTrack(trackStates[contextMenu.trackIndex]) && (
+                  <>
+                    <ContextMenuItem
+                      icon={<IconMetronome />}
+                      label="Alinear metrónomo"
+                      testId="align-metronome-menu"
+                      onClick={() => {
+                        closeContextMenu()
+                        setMetroSettingsOpen(true)
+                        setMetroAlignArmed(true)
+                      }}
+                    />
+                    <ContextMenuItem
+                      icon={<IconSettings />}
+                      label="Ajustes del metrónomo"
+                      testId="metronome-settings-menu"
+                      onClick={() => {
+                        closeContextMenu()
+                        setMetroSettingsOpen(true)
+                      }}
+                    />
+                    <div className="context-menu-sep" />
+                  </>
+                )}
                 <ContextMenuItem
                   icon={<IconPencil />}
                   label="Renombrar pista"
@@ -6492,6 +7182,7 @@ function App() {
                 <ContextMenuItem
                   icon={<IconList />}
                   label="Seleccionar todos los clips de la pista"
+                  testId="select-track-clips"
                   disabled={isMetronomeTrack(trackStates[contextMenu.trackIndex]) || (trackStates[contextMenu.trackIndex]?.clips.length ?? 0) === 0}
                   onClick={() => {
                     handleSelectTrackClips(contextMenu.trackIndex, 'replace')
@@ -6537,6 +7228,24 @@ function App() {
                     if (contextMenu.clipId) loopThisClip(contextMenu.trackIndex, contextMenu.clipId)
                   }}
                 />
+                <ContextMenuItem
+                  icon={<IconAlignStart />}
+                  label="Seleccionar desde aquí hasta el final"
+                  testId="select-from-here"
+                  onClick={() => {
+                    if (contextMenu.clipId) handleSelectFromHereToEnd(contextMenu.trackIndex, contextMenu.clipId)
+                    closeContextMenu()
+                  }}
+                />
+                <ContextMenuItem
+                  icon={<IconGrid />}
+                  label="Seleccionar este punto en todas las pistas"
+                  testId="select-at-time-all-tracks"
+                  onClick={() => {
+                    handleSelectAtTimeAllTracks(contextMenu.time)
+                    closeContextMenu()
+                  }}
+                />
                 <ContextMenuItem icon={<IconCopyPlus />} label="Duplicar" shortcut="Ctrl+D" onClick={() => runContextMenuAction('duplicate')} />
                 <ContextMenuItem
                   icon={<IconMoveHorizontal />}
@@ -6560,6 +7269,30 @@ function App() {
               </>
             ) : (
               <>
+                {isMetronomeTrack(trackStates[contextMenu.trackIndex]) && (
+                  <>
+                    <ContextMenuItem
+                      icon={<IconMetronome />}
+                      label="Alinear metrónomo"
+                      testId="align-metronome-menu-lane"
+                      onClick={() => {
+                        closeContextMenu()
+                        setMetroSettingsOpen(true)
+                        setMetroAlignArmed(true)
+                      }}
+                    />
+                    <ContextMenuItem
+                      icon={<IconSettings />}
+                      label="Ajustes del metrónomo"
+                      testId="metronome-settings-menu-lane"
+                      onClick={() => {
+                        closeContextMenu()
+                        setMetroSettingsOpen(true)
+                      }}
+                    />
+                    <div className="context-menu-sep" />
+                  </>
+                )}
                 <ContextMenuItem
                   icon={<IconClipboardPaste />}
                   label="Pegar aquí"
@@ -6695,6 +7428,42 @@ function App() {
         </div>
       )}
 
+      {metroSettingsOpen && (
+        <>
+          <div
+            className={`metro-settings-backdrop${metroAlignArmed ? ' pass-through' : ''}`}
+            data-testid="metronome-settings-backdrop"
+            onMouseDown={() => {
+              if (!metroAlignArmed) setMetroSettingsOpen(false)
+            }}
+          />
+          <MetronomeSettingsPanel
+            meter={currentMetronomeMeter()}
+            bpm={bpm}
+            hasTempoMap={hasTempoMap(trackStates[findMetronomeIndex(trackStates)]?.tempoMap)}
+            localBpm={(() => {
+              const map = trackStates[findMetronomeIndex(trackStates)]?.tempoMap
+              return map ? localBpmAt(map, playheadPosition) : null
+            })()}
+            alignArmed={metroAlignArmed}
+            phaseMs={Math.round(wrapPhase(currentMetronomeMeter().phaseSeconds, barDurationSeconds(bpm, currentMetronomeMeter())) * 1000)}
+            onPatch={patchMetronomeMeter}
+            onPhaseMs={setMetronomePhaseMs}
+            onArmAlign={() => setMetroAlignArmed((v) => !v)}
+            onClose={() => {
+              setMetroSettingsOpen(false)
+              setMetroAlignArmed(false)
+            }}
+          />
+        </>
+      )}
+
+      {metroAlignArmed && (
+        <div className="metro-align-banner" data-testid="metro-align-banner">
+          Hacé click donde está el 1 · Esc cancela
+        </div>
+      )}
+
       {clipLatencyEdit && (
         <ClipLatencyDialog
           valueMs={clipLatencyEdit.ms}
@@ -6711,16 +7480,17 @@ function App() {
             <div>
               <h3>Edición de clips</h3>
               <ul>
-                <li>• <strong>Click derecho en un clip</strong> - Menú: Cortar, Copiar, Pegar, Dividir aquí, Ajustar latencia, Duplicar, Eliminar</li>
+                <li>• <strong>Click derecho en un clip</strong> - Menú: Cortar, Copiar, Pegar, Dividir aquí, Seleccionar desde aquí hasta el final, Seleccionar este punto en todas las pistas, Duplicar, Eliminar</li>
                 <li>• <strong>Click derecho en una pista vacía</strong> - Pegar aquí (en la posición del cursor, con snap si está activo)</li>
                 <li>• <strong>Click</strong> - Seleccionar clip y mover playhead</li>
                 <li>• <strong>Shift+Click o Cmd/Ctrl+Click</strong> - Añadir o quitar un clip de la selección (cualquier pista)</li>
-                <li>• <strong>Arrastrar en área vacía</strong> - Selección rectangular (varios tracks). Shift añade, Ctrl/Cmd alterna. El loop se dibuja solo en la regla</li>
+                <li>• <strong>Arrastrar en área vacía</strong> - Selección rectangular (varios tracks). También desde la cabecera de pista, el vacío debajo de la última pista, o Alt+arrastrar encima de un clip. Shift añade, Ctrl/Cmd alterna. El loop se dibuja solo en la regla</li>
                 <li>• <strong>Shift/Cmd+click en la cabecera</strong> - Selecciona todos los clips de esa pista. Click derecho → Seleccionar todos los clips de la pista</li>
                 <li>• <strong>Arrastrar clip</strong> - Mueve toda la selección el mismo Δt. Con varios clips solo horizontal (cada uno en su pista). El clip sigue el puntero al píxel (rAF). Snap de cuadrícula solo si Snap está ON. Imán (aparte) encaja bordes. Ninguno pasa de 0:00</li>
                 <li>• <strong>← →</strong> - Empuja la selección (un 16avo). Shift = 1 beat. Click derecho → Mover selección… / Alinear inicios / Eliminar selección</li>
                 <li>• <strong>Alt+Click en clip</strong> - Dividir en el punto clickeado</li>
-                <li>• <strong>Alt+Arrastrar</strong> - Duplicar clip (después de mover 5px). También apaga el Imán mientras mantenés Alt</li>
+                <li>• <strong>Alt+Arrastrar</strong> - Selección rectangular (incluso encima de clips o desde la cabecera). Alt+Click sigue dividiendo. Mantener Alt durante un arrastre normal apaga el Imán</li>
+                <li>• <strong>Cmd/Ctrl+Alt+Arrastrar</strong> - Duplicar clip (después de mover 5px)</li>
                 <li>• <strong>Arrastrar borde izquierdo</strong> - Recortar desde el inicio</li>
                 <li>• <strong>Arrastrar borde derecho</strong> - Recortar desde el final</li>
                 <li>• <strong>Arrastrar archivos de audio</strong> - Soltalos en una pista para colocarlos ahí (con snap si está activo). Entre pistas se inserta una pista nueva. Fuera de una pista se crea una pista nueva al final. Varios archivos: una pista por archivo</li>
@@ -6735,7 +7505,8 @@ function App() {
                 <li>• <strong>Doble clic en el nombre</strong> - Renombrar pista (Enter o clic fuera guarda, Escape cancela)</li>
                 <li>• <strong>Arrastrar el nombre/cabecera</strong> - Reordena las pistas (línea de inserción y las demás se corren). Clips, FX, volumen y mute/solo/Aislar viajan con la pista</li>
                 <li>• <strong>Icono de papelera en la cabecera</strong> - Eliminar la pista entera (pide confirmación si tiene clips)</li>
-                <li>• <strong>Click derecho en la cabecera de pista</strong> - Menú: Renombrar, Insertar pista arriba/abajo, Agregar pista, Eliminar pista</li>
+                <li>• <strong>Click derecho en la cabecera de pista</strong> - Menú: Renombrar, Insertar pista arriba/abajo, Agregar pista, Eliminar pista. En Metrónomo: Alinear metrónomo y Ajustes (compás, subdivisión, sonido)</li>
+                <li>• <strong>BPM</strong> - Decimales (117.5), botones ×2 / ÷2 y TAP. El detector usa una ventana larga y elige el pulso más rápido entre octavas (152 no se pliega a 76)</li>
                 <li>• <strong>+ Agregar pista</strong> - Añade una pista vacía al final (Pista 9, 10, …). También en una pista vacía o zona vacía (clic derecho). Se puede deshacer</li>
                 <li>• <strong>Batería (pads)</strong> - Pista de sampler estilo Redrum: 8 pads (hasta 16), kit inicial sintetizado y secuenciador de 16/32 pasos. Click derecho → Insertar pista de pads. Doble clic abre el editor</li>
                 <li>• <strong>Soltar audio entre pistas</strong> - Inserta una pista nueva en ese lugar. Sobre una pista la coloca ahí</li>
@@ -6746,7 +7517,7 @@ function App() {
                 <li>• <strong>Círculo en la cabecera</strong> - Armar la pista para grabar (rojo = armada). Solo una a la vez</li>
                 <li>• <strong>P (Practicar encima)</strong> - Silencia ese stem y deja el resto sonando para tocar o cantar encima. El botón del transporte usa la pista seleccionada</li>
                 <li>• <strong>Aislar</strong> - Oís SOLO esa pista (para tocar encima). Mute (M) silencia una. Solo (S) puede dejar varias. Una pista nueva se oye también. Pulsá de nuevo para oír todas. {METRONOME_AISLAR_RULE}</li>
-                <li>• <strong>Metrónomo</strong> - Pista fija «Metrónomo» (arriba, no se borra ni se renombra). Sale muteada. El botón del toolbar es el mismo Mute. El clic sigue el BPM, el compás (acento en 1) y Vel. Se exporta solo si está destildado, más la opción de entrada de 2 compases</li>
+                <li>• <strong>Metrónomo</strong> - Pista fija «Metrónomo» (arriba, no se borra ni se renombra). Sale muteada. El botón del toolbar es el mismo Mute. Al cargar el primer audio se detecta un mapa de beats. En Ajustes: Tempo fijo (BPM constante) o Seguir la canción (clics en el mapa, sigue el drift). Arrastrá las marcas en la pista; click derecho: Agregar marca de tempo, Borrar marca, Poner el 1 acá. La regla de compases sigue el mapa en modo Seguir. Vel escala los tiempos. Se exporta solo si está destildado, más la opción de entrada de 2 compases</li>
                 <li>• <strong>Botón FX</strong> - Abre el rack de efectos de esa pista (EQ, compresor, filtro, delay, reverb y pan). Cada módulo tiene knobs y bypass On/Off</li>
                 <li>• <strong>Botón A (curva)</strong> - Muestra la pista de automatización. Elegí el parámetro (volumen, pan o un knob de efecto) y dibujá la curva</li>
               </ul>
@@ -6780,8 +7551,8 @@ function App() {
               
               <h3>Teclado</h3>
               <ul>
-                <li>• <strong>Cmd/Ctrl+S</strong> - Guardar proyecto localmente</li>
-                <li>• <strong>Shift+Cmd/Ctrl+S</strong> - Guardar como... (nueva ubicación)</li>
+                <li>• <strong>Cmd/Ctrl+S</strong> - Guardar proyecto localmente. El permiso del archivo se pide en el mismo gesto, antes de armar el zip</li>
+                <li>• <strong>Shift+Cmd/Ctrl+S</strong> o <strong>Guardar como…</strong> - Nueva ubicación (showSaveFilePicker)</li>
                 <li>• <strong>S</strong> o <strong>Cmd/Ctrl+E</strong> - Dividir clip en playhead (S dispara el pad si el editor de batería está abierto)</li>
                 <li>• <strong>Q W E R / A S D F</strong> - Dispara los pads de la pista de batería seleccionada o con el editor abierto</li>
                 <li>• <strong>Cmd/Ctrl+X</strong> - Cortar clips seleccionados</li>
@@ -6799,7 +7570,9 @@ function App() {
               
               <h3>Guardar y Abrir</h3>
               <ul>
+                <li>• <strong>Nombre del proyecto</strong> - Arriba, al centro. • si hay cambios sin guardar. Doble clic para renombrar (Enter guarda, Esc cancela). El nombre va a Mis proyectos y al archivo .musicalia sugerido</li>
                 <li>• <strong>Guardar</strong> - Guardar proyecto en tu computadora (primera vez elige ubicación, después sobrescribe). El audio nunca sube a la nube</li>
+                <li>• <strong>Guardar como…</strong> - Elige otro archivo .musicalia. Si Chrome pide permiso de nuevo, usá Permitir y guardar; el proyecto no se pierde (sigue en la sesión)</li>
                 <li>• <strong>Abrir</strong> - Abrir proyecto .musicalia desde tu computadora</li>
                 <li>• <strong>Mis proyectos</strong> - Con sesión iniciada, cada Guardar anota nombre, archivo, fecha, BPM y pistas. Solo metadatos: el .musicalia sigue en tu disco. Si el archivo está en esta computadora se abre directo; si no, elegís el .musicalia. Quitar borra la entrada, no el archivo</li>
                 <li>• <strong>Ubicación</strong> - El navegador no revela la ruta completa. Podés anotar carpeta o disco a mano</li>

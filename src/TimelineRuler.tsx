@@ -7,6 +7,11 @@ interface TimelineRulerProps {
   scrollerRef?: MutableRefObject<HTMLDivElement | null>
   zoom?: number
   bpm?: number
+  beatsPerBar?: number
+  pulseSeconds?: number
+  barSeconds?: number
+  phaseSeconds?: number
+  mapBeats?: Array<{ t: number; downbeat?: boolean }>
   layoutMax: number
   loopStart: number | null
   loopEnd: number | null
@@ -25,6 +30,11 @@ export function TimelineRuler({
   scrollerRef,
   zoom = 1,
   bpm = 120,
+  beatsPerBar = 4,
+  pulseSeconds,
+  barSeconds,
+  phaseSeconds = 0,
+  mapBeats,
   layoutMax,
   loopStart,
   loopEnd,
@@ -61,7 +71,12 @@ export function TimelineRuler({
         pxPerSec: pps,
         viewStart: view.start,
         viewEnd: view.end,
-        bpm
+        bpm,
+        beatsPerBar,
+        pulseSeconds,
+        barSeconds,
+        phaseSeconds,
+        mapBeats
       }))
     }
     update()
@@ -73,7 +88,7 @@ export function TimelineRuler({
       scroller.removeEventListener('scroll', update)
       ro.disconnect()
     }
-  }, [scrollerRef, zoom, bpm, max])
+  }, [scrollerRef, zoom, bpm, beatsPerBar, pulseSeconds, barSeconds, phaseSeconds, mapBeats, max])
 
   const generated = ticks.map((tick, i) => (
     tick.kind === 'bar' ? (

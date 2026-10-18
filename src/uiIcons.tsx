@@ -62,6 +62,18 @@ export function IconSave(props: IconProps) {
   )
 }
 
+export function IconSaveAs(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M17 21v-7H7v7" />
+      <path d="M7 3v5h8" />
+      <path d="M19 10h4" />
+      <path d="M21 8v4" />
+    </Svg>
+  )
+}
+
 export function IconList(props: IconProps) {
   return (
     <Svg {...props}>
@@ -236,6 +248,22 @@ export function IconClock(props: IconProps) {
   )
 }
 
+export function IconSettings(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.9 4.9 1.4 1.4" />
+      <path d="m17.7 17.7 1.4 1.4" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m4.9 19.1 1.4-1.4" />
+      <path d="m17.7 6.3 1.4-1.4" />
+    </Svg>
+  )
+}
+
 export function IconSliders(props: IconProps) {
   return (
     <Svg {...props}>
@@ -375,6 +403,7 @@ export function ContextMenuItem({
   shortcut,
   danger,
   disabled,
+  testId,
   onClick
 }: {
   icon: ReactNode
@@ -382,6 +411,7 @@ export function ContextMenuItem({
   shortcut?: string
   danger?: boolean
   disabled?: boolean
+  testId?: string
   onClick: () => void
 }) {
   return (
@@ -389,6 +419,7 @@ export function ContextMenuItem({
       type="button"
       className={`context-menu-item${danger ? ' danger' : ''}${disabled ? ' disabled' : ''}`}
       disabled={disabled}
+      data-testid={testId}
       onClick={onClick}
     >
       <span className="context-menu-icon">{icon}</span>

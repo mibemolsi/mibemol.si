@@ -76,6 +76,48 @@ const ticks = timelineTicks({
 assert(ticks.length > 0 && ticks.length < 240, 'virtualized tick count stays bounded')
 assert(ticks[0].t >= 0 && ticks[ticks.length - 1].t <= 8, 'ticks stay inside the view')
 
+const waltz = timelineTicks({
+  layoutMax: 6,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 6,
+  bpm: 120,
+  beatsPerBar: 3,
+  pulseSeconds: 0.5,
+  barSeconds: 1.5
+})
+assert(waltz.some((t) => t.kind === 'bar' && t.label === '1' && t.t === 0), '3/4 bar 1 at 0')
+assert(waltz.some((t) => t.kind === 'bar' && t.label === '2' && Math.abs(t.t - 1.5) < 1e-9), '3/4 bar 2 at 1.5s')
+
+const shifted = timelineTicks({
+  layoutMax: 4,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 4,
+  bpm: 120,
+  barSeconds: 2,
+  pulseSeconds: 0.5,
+  phaseSeconds: 0.12
+})
+assert(shifted.some((t) => t.kind === 'bar' && Math.abs(t.t - 0.12) < 1e-9), 'ruler follows metronome phase')
+
+const mapped = timelineTicks({
+  layoutMax: 4,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 4,
+  bpm: 120,
+  mapBeats: [
+    { t: 0, downbeat: true },
+    { t: 0.4 },
+    { t: 0.85 },
+    { t: 1.3, downbeat: true }
+  ]
+})
+assert(mapped[0]?.kind === 'bar' && mapped[0].t === 0, 'follow-mode ruler uses the first downbeat')
+assert(mapped.some((t) => t.kind === 'beat' && t.t === 0.4), 'follow-mode ruler shows in-between beats')
+assert(mapped.some((t) => t.kind === 'bar' && t.t === 1.3 && t.label === '2'), 'follow-mode ruler numbers bars from the map')
+
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)
   process.exit(1)

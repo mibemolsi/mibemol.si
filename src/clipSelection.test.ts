@@ -1,19 +1,28 @@
 import {
+  applyClipClickSelect,
+  applyClipPointerSelect,
   applyGroupTimeDelta,
   clampGroupTimeDelta,
   clampGroupTrackDelta,
   clipIdsOnTracks,
+  clipsFromHereToEnd,
+  clipsOverlappingTime,
   clientRectsIntersect,
   commitEditedTrackName,
+  contentPointFromClient,
   deleteTrackFromList,
+  isDuplicateDragModifier,
+  isMarqueeModifier,
   marqueeClientRect,
+  marqueeEdgeScrollDelta,
   mergeSelection,
   nudgeDeltaSeconds,
   packClipboard,
   parseMoveAmountSeconds,
   pastePlacement,
   resolveTrackName,
-  selectableClipIds
+  selectableClipIds,
+  selectionModifier
 } from './clipSelection'
 
 let failed = 0
@@ -103,6 +112,59 @@ assert(
   ) === null,
   'cannot delete the metronome track'
 )
+
+assert(selectionModifier({ metaKey: true }), 'Mac Cmd is a selection modifier')
+assert(selectionModifier({ ctrlKey: true }), 'Ctrl is a selection modifier')
+assert(selectionModifier({ shiftKey: true }), 'Shift is a selection modifier')
+assert(!selectionModifier({}), 'plain click is not a modifier')
+
+assert(isMarqueeModifier({ altKey: true }), 'Alt alone is the clip-top marquee modifier')
+assert(!isMarqueeModifier({ altKey: true, metaKey: true }), 'Cmd+Alt is not a marquee (it duplicates)')
+assert(!isMarqueeModifier({ altKey: true, ctrlKey: true }), 'Ctrl+Alt is not a marquee (it duplicates)')
+assert(!isMarqueeModifier({}), 'plain pointer is not a marquee modifier')
+assert(isDuplicateDragModifier({ altKey: true, metaKey: true }), 'Cmd+Alt+drag duplicates')
+assert(isDuplicateDragModifier({ altKey: true, ctrlKey: true }), 'Ctrl+Alt+drag duplicates')
+assert(!isDuplicateDragModifier({ altKey: true }), 'Alt alone no longer duplicates')
+
+const ranged = [
+  { kind: 'metronome', clips: [{ id: 'm', offsetSeconds: 0, duration: 10 }] },
+  { kind: 'audio', clips: [{ id: 'a', offsetSeconds: 0.2, duration: 0.5 }, { id: 'b', offsetSeconds: 1.3, duration: 0.5 }] },
+  { kind: 'audio', clips: [{ id: 'c', offsetSeconds: 0.4, duration: 0.5 }, { id: 'd', offsetSeconds: 1.6, duration: 0.5 }] },
+  { kind: 'drum', clips: [{ id: 'e', offsetSeconds: 0.9, duration: 0.5 }] }
+]
+assert(clipsFromHereToEnd(ranged, 0.9).join(',') === 'b,d,e', 'from-here-to-end takes every clip at/after the origin on all tracks')
+assert(clipsFromHereToEnd(ranged, 0.2).join(',') === 'a,b,c,d,e', 'from the earliest clip selects the session')
+assert(!clipsFromHereToEnd(ranged, 0).includes('m'), 'from-here-to-end skips the metronome')
+assert(clipsOverlappingTime(ranged, 0.45).join(',') === 'a,c', 'this-point-all-tracks hits clips covering that time')
+assert(clipsOverlappingTime(ranged, 1.0).join(',') === 'e', 'point select is exclusive of clip ends')
+assert(!clipsOverlappingTime(ranged, 0.45).includes('m'), 'point select skips the metronome')
+
+const edge = marqueeEdgeScrollDelta({ left: 0, right: 200, top: 0, bottom: 100 }, 198, 50)
+assert(edge.dx > 0 && edge.dy === 0, 'near the right edge scrolls the timeline forward')
+const leftEdge = marqueeEdgeScrollDelta({ left: 0, right: 200, top: 0, bottom: 100 }, 2, 4)
+assert(leftEdge.dx < 0 && leftEdge.dy < 0, 'near the top-left scrolls backward and up')
+assert(marqueeEdgeScrollDelta({ left: 0, right: 200, top: 0, bottom: 100 }, 100, 50).dx === 0, 'center of the port does not auto-scroll')
+
+const mapped = contentPointFromClient({ scrollLeft: 40, scrollTop: 10, getBoundingClientRect: () => ({ left: 20, top: 5 }) }, 30, 15)
+assert(mapped.x === 50 && mapped.y === 20, 'marquee origin is stored in content coordinates so auto-scroll can grow the band')
+
+const ptrAdd = applyClipPointerSelect(new Set(['a']), 'b', { metaKey: true })
+assert(ptrAdd.action === 'added' && ptrAdd.next.has('a') && ptrAdd.next.has('b'), 'Cmd pointerdown adds the new clip')
+assert(applyClipClickSelect(ptrAdd.next, 'b', { metaKey: true }, 'added') == null, 'click must not toggle off the clip just added')
+
+const ptrKeep = applyClipPointerSelect(new Set(['a', 'b']), 'a', { shiftKey: true })
+assert(ptrKeep.action === 'kept' && ptrKeep.next.has('a') && ptrKeep.next.has('b'), 'Shift pointerdown on a selected clip keeps the group for a possible drag')
+const shiftClickOff = applyClipClickSelect(ptrKeep.next, 'a', { shiftKey: true }, 'kept')
+assert(!!shiftClickOff && !shiftClickOff.has('a') && shiftClickOff.has('b'), 'true Shift+click later toggles that clip off once')
+
+const ptrPlain = applyClipPointerSelect(new Set(['a', 'b']), 'a', {})
+assert(ptrPlain.action === 'kept' && ptrPlain.next.size === 2, 'plain pointerdown on a multi-select member keeps the group')
+const plainClick = applyClipClickSelect(ptrPlain.next, 'a', {}, 'kept')
+assert(!!plainClick && plainClick.size === 1 && plainClick.has('a'), 'true plain click collapses after no drag')
+assert(applyClipClickSelect(new Set(['c']), 'c', {}, 'replaced') == null, 'plain click after replace is a no-op')
+
+const ptrReplace = applyClipPointerSelect(new Set(['a']), 'c', {})
+assert(ptrReplace.action === 'replaced' && ptrReplace.next.has('c') && !ptrReplace.next.has('a'), 'plain pointerdown on another clip replaces')
 
 assert(resolveTrackName('  Voces  ', 2) === 'Voces', 'trims stored track names')
 assert(resolveTrackName('', 3) === 'Track 4', 'empty name falls back to Track N')
