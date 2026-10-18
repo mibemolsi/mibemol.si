@@ -25,6 +25,14 @@ export interface TempoMap {
 
 const TIGHTNESS = 80
 const MIN_BEATS = 2
+/** Snap a near-origin first beat to t=0 so there is no empty pre-roll hole. */
+export const ORIGIN_SNAP_SECONDS = 0.02
+
+export interface RulerMapBeat {
+  t: number
+  downbeat?: boolean
+  bar?: number
+}
 
 export function newBeatId(time: number, index: number): string {
   return `beat-${index}-${Math.round(time * 10000)}`
@@ -41,24 +49,92 @@ export function isFollowEnabled(
   return meter?.followMode !== 'fixed' && hasTempoMap(map)
 }
 
+/** Opening inter-beat interval, preferring the first gap when it matches the BPM. */
+export function openingBeatPeriod(times: number[], bpm: number): number {
+  const fromBpm = 60 / Math.max(1, bpm)
+  if (times.length < 2) return fromBpm
+  const dt = times[1] - times[0]
+  if (!(dt > 1e-6)) return fromBpm
+  const n = Math.max(1, Math.round(dt / fromBpm))
+  const period = dt / n
+  if (period > fromBpm * 0.45 && period < fromBpm * 1.8) return period
+  return fromBpm
+}
+
+/**
+ * Walk the opening period backwards so the grid always includes t=0.
+ * Detected times stay put; only missing origin beats are inserted.
+ * A first beat within a few milliseconds of 0 is snapped to 0 so the
+ * first click is exactly at the clip start — no empty pre-roll gap.
+ */
+export function prependBeatTimesToOrigin(times: number[], period: number): number[] {
+  if (!(period > 1e-6) || times.length === 0) return times
+  const first = times[0]
+  const snap = Math.min(ORIGIN_SNAP_SECONDS, period * 0.15)
+  if (first <= 1e-6) return times
+  if (first <= snap) return [0, ...times.slice(1)]
+  const extra: number[] = []
+  let t = first - period
+  const guard = Math.ceil(first / period) + 3
+  for (let i = 0; i < guard && t > snap; i++) {
+    extra.push(t)
+    t -= period
+  }
+  extra.push(0)
+  extra.reverse()
+  return [...extra, ...times]
+}
+
+/**
+ * Guarantee a beat at t=0. Tracker-default maps (downbeatIndex 0) re-home
+ * bar/beat 1 there. A user-moved 1 (downbeatIndex > 0) is preserved for
+ * accents; clicks and ruler bars still fill back to the origin.
+ */
+export function alignTempoMapToOrigin(map: TempoMap): TempoMap {
+  if (!hasTempoMap(map)) return map
+  const times = map.beats.map((b) => b.time)
+  const period = openingBeatPeriod(times, map.globalBpm)
+  const expanded = prependBeatTimesToOrigin(times, period)
+  const alreadyOrigin = expanded.length === times.length && expanded[0] === times[0] && times[0] <= 1e-6
+  if (alreadyOrigin) return map
+  const prepended = Math.max(0, expanded.length - times.length)
+  const beats = expanded.map((time, index) => {
+    const existing = map.beats.find((b) => Math.abs(b.time - time) < 1e-9)
+    if (existing) return { ...existing, time }
+    const snapped = map.beats.find((b) => Math.abs(b.time - times[0]) < 1e-9 && time === 0 && times[0] > 0)
+    if (snapped && index === 0) return { ...snapped, time: 0 }
+    return { id: newBeatId(time, index), time, pinned: false }
+  })
+  const downbeatIndex = map.downbeatIndex > 0
+    ? Math.min(beats.length - 1, map.downbeatIndex + prepended)
+    : 0
+  return { ...map, beats, downbeatIndex }
+}
+
 /** Bar/beat ticks for the ruler when Seguir la canción is on. */
 export function rulerMapBeats(
   map: TempoMap | null | undefined,
   meter: Partial<MetronomeMeter> | null | undefined,
   bpm?: number
-): Array<{ t: number; downbeat?: boolean }> | undefined {
+): RulerMapBeat[] | undefined {
   if (!isFollowEnabled(meter, map) || !map) return undefined
+  const aligned = alignTempoMapToOrigin(map)
   const pulses = pulsesPerBar(normalizeMetronomeMeter(meter), bpm)
-  return map.beats.map((beat, index) => ({
-    t: beat.time,
-    downbeat: isDownbeat(map, index, pulses)
-  }))
+  return aligned.beats.map((beat, index) => {
+    const downbeat = index % pulses === 0
+    return {
+      t: beat.time,
+      downbeat,
+      bar: downbeat ? Math.floor(index / pulses) + 1 : undefined
+    }
+  })
 }
 
 export function buildTempoMap(times: number[], bpm: number, duration: number): TempoMap {
   const unique = [...new Set(times.filter((t) => Number.isFinite(t) && t >= 0))].sort((a, b) => a - b)
+  const aligned = prependBeatTimesToOrigin(unique, openingBeatPeriod(unique, bpm))
   return {
-    beats: unique.map((time, index) => ({
+    beats: aligned.map((time, index) => ({
       id: newBeatId(time, index),
       time,
       pinned: false
@@ -313,12 +389,16 @@ export function followClicksInRange(args: {
   const end = args.end
   if (!(end > start)) return []
   const clicks: MeterClick[] = []
-  const beats = args.map.beats
+  const map = alignTempoMapToOrigin(args.map)
+  const beats = map.beats.slice()
+  if (beats.length > 0 && beats[0].time > 1e-9) {
+    beats.unshift({ id: newBeatId(0, 0), time: 0, pinned: false })
+  }
   for (let i = 0; i < beats.length; i++) {
     const time = beats[i].time
     if (time >= end - 1e-12) break
     if (time < start) continue
-    const beatInBar = ((i - args.map.downbeatIndex) % pulses + pulses) % pulses
+    const beatInBar = ((i - map.downbeatIndex) % pulses + pulses) % pulses
     clicks.push({
       songTime: time,
       beatIndex: i,
@@ -466,12 +546,12 @@ export function hydrateTempoMap(raw: unknown): TempoMap | undefined {
   }
   if (beats.length < MIN_BEATS) return undefined
   beats.sort((a, b) => a.time - b.time)
-  return {
+  return alignTempoMapToOrigin({
     beats,
     downbeatIndex: Math.max(0, Math.min(beats.length - 1, Math.floor(Number(rec.downbeatIndex) || 0))),
     globalBpm: clampBpm(Number(rec.globalBpm) || 120),
     sourceDuration: Math.max(0, Number(rec.sourceDuration) || 0)
-  }
+  })
 }
 
 export function serializeTrackTempoMap(track: {

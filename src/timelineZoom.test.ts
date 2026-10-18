@@ -118,6 +118,74 @@ assert(mapped[0]?.kind === 'bar' && mapped[0].t === 0, 'follow-mode ruler uses t
 assert(mapped.some((t) => t.kind === 'beat' && t.t === 0.4), 'follow-mode ruler shows in-between beats')
 assert(mapped.some((t) => t.kind === 'bar' && t.t === 1.3 && t.label === '2'), 'follow-mode ruler numbers bars from the map')
 
+const sidePeriod = 60 / 160.2
+const lateMapped = timelineTicks({
+  layoutMax: 6,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 6,
+  bpm: 160.2,
+  beatsPerBar: 4,
+  pulseSeconds: sidePeriod,
+  mapBeats: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({
+    t: i * sidePeriod,
+    downbeat: (i - 1) % 4 === 0
+  }))
+})
+assert(
+  lateMapped.some((t) => t.kind === 'bar' && t.label === '1' && Math.abs(t.t) < 1e-9),
+  'follow ruler draws bar 1 at t=0 when the map starts one beat late'
+)
+assert(
+  lateMapped.some((t) => t.kind === 'beat' && Math.abs(t.t - sidePeriod) < 1e-6),
+  'follow ruler keeps the first detected beat'
+)
+
+const pickupMapped = timelineTicks({
+  layoutMax: 6,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 6,
+  bpm: 160.2,
+  beatsPerBar: 4,
+  pulseSeconds: sidePeriod,
+  mapBeats: [
+    { t: 0, downbeat: true, bar: 0 },
+    { t: sidePeriod },
+    { t: sidePeriod * 2 },
+    { t: sidePeriod * 3 },
+    { t: sidePeriod * 4, downbeat: true, bar: 1 }
+  ]
+})
+assert(
+  pickupMapped.some((t) => t.kind === 'bar' && t.label === '1' && t.t === 0),
+  'first ruler bar line is at t=0 labeled 1 even after Poner el 1 acá'
+)
+assert(
+  pickupMapped.some((t) => t.kind === 'bar' && t.label === '2' && Math.abs(t.t - sidePeriod * 4) < 1e-6),
+  'later downbeats keep numbering after the origin 1'
+)
+
+const nearOrigin = timelineTicks({
+  layoutMax: 4,
+  pxPerSec: 80,
+  viewStart: 0,
+  viewEnd: 4,
+  bpm: 160.2,
+  beatsPerBar: 4,
+  pulseSeconds: sidePeriod,
+  mapBeats: [
+    { t: 0.012, downbeat: true },
+    { t: sidePeriod, downbeat: false },
+    { t: sidePeriod * 2 },
+    { t: sidePeriod * 3 }
+  ]
+})
+assert(
+  nearOrigin.some((t) => t.kind === 'bar' && t.label === '1' && Math.abs(t.t) < 1e-9),
+  'a first beat a few ms late still snaps bar 1 to t=0'
+)
+
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)
   process.exit(1)
