@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tone from 'tone'
 import JSZip from 'jszip'
@@ -22,6 +22,7 @@ import {
 import {
   addBeatAt,
   alignTempoMapToOrigin,
+  buildTempoMap,
   hasTempoMap,
   hydrateTempoMap,
   hydrateTrackTempoMap,
@@ -374,7 +375,7 @@ import {
   trackKindOf
 } from './drumProject'
 
-const APP_VERSION = '0.0098b'
+const APP_VERSION = '0.0099b'
 
 interface ClipboardClip {
   buffer: AudioBuffer
@@ -656,6 +657,10 @@ function App() {
   const clipPointerSelectRef = useRef<{ clipId: string; action: ClipPointerSelectAction } | null>(null)
   const appCommitCountRef = useRef(0)
   appCommitCountRef.current += 1
+  if (typeof window !== 'undefined') {
+    const w = window as unknown as { __musicaliaAppRenders?: number }
+    w.__musicaliaAppRenders = (w.__musicaliaAppRenders ?? 0) + 1
+  }
   const trimLiveRef = useRef<{
     active: boolean
     trackIndex: number
@@ -688,6 +693,23 @@ function App() {
     const track = idx >= 0 ? trackStatesRef.current[idx] : undefined
     return meterOf(track)
   }
+
+  const metroTrackIndex = findMetronomeIndex(trackStates)
+  const metroTrack = metroTrackIndex >= 0 ? trackStates[metroTrackIndex] : undefined
+  const metroMeter = metroTrack?.metronome
+  const metroMapBeats = useMemo(
+    () => rulerMapBeats(metroTrack?.tempoMap, metroMeter, bpm),
+    [metroTrack?.tempoMap, metroMeter, bpm]
+  )
+  const metroRuler = useMemo(() => {
+    const meter = normalizeMetronomeMeter(metroMeter)
+    return {
+      beatsPerBar: pulsesPerBar(meter, bpm),
+      pulseSeconds: pulseDurationSeconds(bpm, meter),
+      barSeconds: barDurationSeconds(bpm, meter),
+      phaseSeconds: meter.phaseSeconds
+    }
+  }, [metroMeter, bpm])
 
   const getCountInSeconds = () => {
     return countInBars * barDurationSeconds(bpm, currentMetronomeMeter())
@@ -2408,11 +2430,16 @@ function App() {
     setIsPaused(false)
     
     let lastUpdateTime = 0
+    let lastMetroAhead = startTime
     isPlayingRef.current = true
     const updatePlayhead = (timestamp: number) => {
       if (Tone.getTransport().state === 'started') {
         let currentTime = getSongTime()
         applyAllTrackAudio(currentTime)
+        if (currentTime - lastMetroAhead > 2.5) {
+          lastMetroAhead = currentTime
+          scheduleMetronome(currentTime)
+        }
         if (timestamp - lastUpdateTime < 50) {
           playheadAnimationRef.current = requestAnimationFrame(updatePlayhead)
           return
@@ -5753,7 +5780,15 @@ function App() {
         return true
       },
       resetTempo: () => resetTempoToFixed(),
-      reanalyzeTempo: () => reanalyzeTempo()
+      reanalyzeTempo: () => reanalyzeTempo(),
+      getRenderStats: () => ({
+        app: (window as unknown as { __musicaliaAppRenders?: number }).__musicaliaAppRenders ?? 0,
+        markers: (window as unknown as { __musicaliaMarkerRenders?: number }).__musicaliaMarkerRenders ?? 0
+      }),
+      resetRenderStats: () => {
+        ;(window as unknown as { __musicaliaAppRenders?: number }).__musicaliaAppRenders = 0
+        ;(window as unknown as { __musicaliaMarkerRenders?: number }).__musicaliaMarkerRenders = 0
+      }
     }
     ;(window as unknown as { __musicaliaMetronome?: typeof api }).__musicaliaMetronome = api
     return () => {
@@ -5935,6 +5970,49 @@ function App() {
         trackStatesRef.current = next
         setTrackStates(next)
         return { id, trackIndex: target.index, offsetSeconds: 0, duration: buffer.duration }
+      },
+      seedPerfSession: async (seconds = 600, trackCount = 5, bpm = 160) => {
+        await ensureAudio()
+        const raw = nativeAudioContext(Tone.getContext().rawContext)
+        const sr = raw.sampleRate
+        const dur = Math.max(8, Number(seconds) || 600)
+        const clipDur = 0.35
+        const length = Math.max(16, Math.floor(sr * clipDur))
+        const buffer = raw.createBuffer(1, length, sr)
+        const channel = buffer.getChannelData(0)
+        for (let i = 0; i < length; i++) channel[i] = Math.sin((2 * Math.PI * 220 * i) / sr) * 0.2
+        const next = trackStatesRef.current.map((track) => ({ ...track, clips: [...track.clips] }))
+        const audio = next
+          .map((track, index) => ({ track, index }))
+          .filter(({ track }) => !isMetronomeTrack(track) && track.kind !== 'drum')
+        const used = audio.slice(0, Math.max(1, trackCount))
+        used.forEach(({ index }, i) => {
+          const player = makeClipPlayer()
+          player.buffer = new Tone.ToneAudioBuffer(buffer)
+          player.loop = false
+          const dest = trackGainsRef.current[index]
+          if (dest) player.connect(dest)
+          next[index].clips = [{
+            player,
+            fileName: `Stem ${i + 1}`,
+            isPlaying: false,
+            buffer,
+            startPosition: 0,
+            offsetSeconds: 0,
+            id: `clip-perf-${index}`,
+            sourceStart: 0,
+            duration: i === 0 ? dur : clipDur
+          }]
+        })
+        trackStatesRef.current = next
+        setTrackStates(next)
+        const period = 60 / Math.max(1, bpm)
+        const times: number[] = []
+        for (let t = 0; t < dur; t += period) times.push(t)
+        applySessionBpm(bpm)
+        applyDetectedTempoMap(buildTempoMap(times, bpm, dur))
+        patchMetronomeMeter({ followMode: 'follow' })
+        return { beats: times.length, tracks: used.length, duration: dur, bpm }
       },
       seedWaveform: async () => {
         await ensureAudio()
@@ -7119,15 +7197,11 @@ function App() {
             scrollerRef={lanesScrollRef}
             zoom={horizontalZoom}
             bpm={bpm}
-            beatsPerBar={pulsesPerBar(currentMetronomeMeter(), bpm)}
-            pulseSeconds={pulseDurationSeconds(bpm, currentMetronomeMeter())}
-            barSeconds={barDurationSeconds(bpm, currentMetronomeMeter())}
-            phaseSeconds={currentMetronomeMeter().phaseSeconds}
-            mapBeats={rulerMapBeats(
-              trackStates[findMetronomeIndex(trackStates)]?.tempoMap,
-              currentMetronomeMeter(),
-              bpm
-            )}
+            beatsPerBar={metroRuler.beatsPerBar}
+            pulseSeconds={metroRuler.pulseSeconds}
+            barSeconds={metroRuler.barSeconds}
+            phaseSeconds={metroRuler.phaseSeconds}
+            mapBeats={metroMapBeats}
             layoutMax={getLayoutMax()}
             loopStart={loopStart}
             loopEnd={loopEnd}
@@ -7153,7 +7227,7 @@ function App() {
               trackKind={trackState.kind}
               bpm={bpm}
               beatsPerBar={pulsesPerBar(meterOf(trackState), bpm)}
-              meter={trackState.kind === 'metronome' ? meterOf(trackState) : undefined}
+              meter={trackState.kind === 'metronome' ? trackState.metronome : undefined}
               tempoMap={trackState.kind === 'metronome' ? trackState.tempoMap : undefined}
               onTempoMove={handleTempoMove}
               onTempoAdd={handleTempoAdd}
