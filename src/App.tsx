@@ -6304,7 +6304,7 @@ function App() {
       />
 
       <div className="app-titlebar">
-        <span className="app-wordmark">Musicalia</span>
+        <span className="app-wordmark">MIBEMOL.SI</span>
         <div
           className={`project-title${projectDirty ? ' dirty' : ''}${renamingProject ? ' editing' : ''}`}
           data-testid="project-title"
