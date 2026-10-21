@@ -1671,12 +1671,12 @@ function App() {
       setFileHandleUnsaved(false)
       setFileSavePrompt(null)
       setProjectDirty(false)
-      setProjectFileName(fileHandle.name || `${projectName}.musicalia`)
+      setProjectFileName(fileHandle.name || `${projectName}.mibemolsi`)
       armDirtySoon()
       setToastMessage(`✅ Proyecto guardado: ${projectName}`)
       setShowToast(true)
       setTimeout(() => setShowToast(false), 3000)
-      await registerSavedProject(projectName, fileHandle.name || `${projectName}.musicalia`, fileHandle)
+      await registerSavedProject(projectName, fileHandle.name || `${projectName}.mibemolsi`, fileHandle)
       console.log(`[Save] Project saved successfully: ${projectName}`)
       return true
     } catch (err) {
@@ -1713,7 +1713,7 @@ function App() {
             return pick(opts)
           }
           const handle = await pickSaveFileHandle(fileName, picker) as FileSystemFileHandle
-          const chosenBase = String(handle.name || fileName).replace(/\.musicalia$/i, '').trim()
+          const chosenBase = String(handle.name || fileName).replace(/\.(?:mibemolsi|musicalia)$/i, '').trim()
           const savedFileName = chosenBase || currentProjectName
           setCurrentProjectName(savedFileName)
           currentFileHandleRef.current = handle
@@ -1962,7 +1962,7 @@ function App() {
           }
         }
       }
-      const missingMsg = `«${entry.fileName}» no está en esta computadora. Elegí el archivo .musicalia correspondiente.`
+      const missingMsg = `«${entry.fileName}» no está en esta computadora. Elegí el archivo .mibemolsi correspondiente.`
       setMyProjectsHint(missingMsg)
       window.alert(missingMsg)
       const picked = await pickMusicaliaFile()
@@ -6290,7 +6290,7 @@ function App() {
       <input
         ref={localFileInputRef}
         type="file"
-        accept=".musicalia"
+        accept=".mibemolsi,.musicalia,application/x-musicalia"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0]
@@ -6866,12 +6866,12 @@ function App() {
                 className="confirm-cancel"
                 data-testid="file-save-download"
                 onClick={() => {
-                  const name = `${sanitizeFilename(fileSavePrompt.projectName || currentProjectName) || 'proyecto'}.musicalia`
+                  const name = suggestedMusicaliaFileName(fileSavePrompt.projectName || currentProjectName)
                   setFileSavePrompt(null)
                   void saveFallbackDownload(name)
                 }}
               >
-                Descargar .musicalia
+                Descargar .mibemolsi
               </button>
               <button type="button" className="confirm-cancel" onClick={() => setFileSavePrompt(null)}>
                 Ahora no
@@ -7891,7 +7891,7 @@ function App() {
                 <li>• <strong>Arrastrar borde derecho</strong> - Recortar desde el final</li>
                 <li>• <strong>Arrastrar archivos de audio</strong> - Soltalos en una pista para colocarlos ahí (con snap si está activo). Entre pistas se inserta una pista nueva. Fuera de una pista se crea una pista nueva al final. Varios archivos: una pista por archivo</li>
                 <li>• <strong>Botón Snap</strong> - Empieza en OFF. Activa/desactiva el ajuste a cuadrícula (se recuerda)</li>
-                <li>• <strong>Botón Imán</strong> - Empieza en OFF. Encaja inicio/final del clip (o de la selección) con otros clips de cualquier pista y con 0, a unos 8 px. Guía vertical al encajar. Se guarda en el .musicalia y en la sesión</li>
+                <li>• <strong>Botón Imán</strong> - Empieza en OFF. Encaja inicio/final del clip (o de la selección) con otros clips de cualquier pista y con 0, a unos 8 px. Guía vertical al encajar. Se guarda en el archivo del proyecto y en la sesión</li>
                 <li>• <strong>Alinear inicios</strong> - Con varios clips seleccionados, click derecho → deja todos los inicios en el más temprano</li>
                 <li>• <strong>Shift al arrastrar</strong> - Invierte el snap de cuadrícula mientras arrastras (lo enciende si está OFF, lo apaga si está ON)</li>
               </ul>
@@ -7966,11 +7966,11 @@ function App() {
               
               <h3>Guardar y Abrir</h3>
               <ul>
-                <li>• <strong>Nombre del proyecto</strong> - Arriba, al centro. • si hay cambios sin guardar. Doble clic para renombrar (Enter guarda, Esc cancela). El nombre va a Mis proyectos y al archivo .musicalia sugerido</li>
+                <li>• <strong>Nombre del proyecto</strong> - Arriba, al centro. • si hay cambios sin guardar. Doble clic para renombrar (Enter guarda, Esc cancela). El nombre va a Mis proyectos y al archivo .mibemolsi sugerido</li>
                 <li>• <strong>Guardar</strong> - Guardar proyecto en tu computadora (primera vez elige ubicación, después sobrescribe). El audio nunca sube a la nube</li>
-                <li>• <strong>Guardar como…</strong> - Elige otro archivo .musicalia. Si Chrome pide permiso de nuevo, usá Permitir y guardar; el proyecto no se pierde (sigue en la sesión)</li>
-                <li>• <strong>Abrir</strong> - Abrir proyecto .musicalia desde tu computadora</li>
-                <li>• <strong>Mis proyectos</strong> - Con sesión iniciada, cada Guardar anota nombre, archivo, fecha, BPM y pistas. Solo metadatos: el .musicalia sigue en tu disco. Si el archivo está en esta computadora se abre directo; si no, elegís el .musicalia. Quitar borra la entrada, no el archivo</li>
+                <li>• <strong>Guardar como…</strong> - Elige otro archivo .mibemolsi. También se pueden abrir proyectos .musicalia anteriores. Si Chrome pide permiso de nuevo, usá Permitir y guardar; el proyecto no se pierde (sigue en la sesión)</li>
+                <li>• <strong>Abrir</strong> - Abrir proyecto .mibemolsi o .musicalia desde tu computadora</li>
+                <li>• <strong>Mis proyectos</strong> - Con sesión iniciada, cada Guardar anota nombre, archivo, fecha, BPM y pistas. Solo metadatos: el archivo del proyecto sigue en tu disco. Si el archivo está en esta computadora se abre directo; si no, elegís el proyecto. Quitar borra la entrada, no el archivo</li>
                 <li>• <strong>Ubicación</strong> - El navegador no revela la ruta completa. Podés anotar carpeta o disco a mano</li>
                 <li>• Los proyectos incluyen todo el audio y stems sin rehacer separación</li>
               </ul>

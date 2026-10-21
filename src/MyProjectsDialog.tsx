@@ -35,7 +35,7 @@ export function MyProjectsDialog({
       <div className="modal-content my-projects-modal">
         <h2>Mis proyectos</h2>
         <p>
-          Solo metadatos en la nube. El audio vive en tu archivo <strong>.musicalia</strong> local.
+          Solo metadatos en la nube. El audio vive en tu archivo <strong>.mibemolsi</strong> local.
           Quitar de la lista no borra el archivo.
         </p>
         {hint && <p className="my-projects-hint" data-testid="my-projects-hint">{hint}</p>}

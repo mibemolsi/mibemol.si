@@ -37,7 +37,7 @@ const first = buildRegistryEntry({
   bpm: 119.4,
   trackCount: 8
 })
-assert(first.fileName === 'Demo.musicalia', 'adds .musicalia suffix')
+assert(first.fileName === 'Demo.mibemolsi', 'adds .mibemolsi suffix')
 assert(first.name === 'Demo', 'trims name')
 assert(first.bpm === 119, 'rounds bpm')
 assert(first.locationNote === '', 'location note starts empty')

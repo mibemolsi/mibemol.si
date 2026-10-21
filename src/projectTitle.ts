@@ -16,11 +16,11 @@ export function isUntitledProjectName(name: string | null | undefined): boolean 
 
 export function baseNameFromMusicalia(fileName: string | null | undefined): string | null {
   if (!fileName) return null
-  const base = String(fileName).trim().replace(/\.musicalia$/i, '').trim()
+  const base = String(fileName).trim().replace(/\.(?:musicalia|mibemolsi)$/i, '').trim()
   return base.length > 0 ? base : null
 }
 
-/** Project name, else the .musicalia basename, else "Sin título". */
+/** Project name, else the .mibemolsi / legacy .musicalia basename, else "Sin título". */
 export function displayProjectName(
   name: string | null | undefined,
   fileName?: string | null
@@ -34,7 +34,7 @@ export function displayProjectName(
 
 export function projectTabTitle(displayName: string, dirty: boolean): string {
   const name = displayName.trim() || UNTITLED_PROJECT_NAME
-  return dirty ? `• ${name} — Musicalia` : `${name} — Musicalia`
+  return dirty ? `• ${name} — MIBEMOL.SI` : `${name} — MIBEMOL.SI`
 }
 
 export function commitProjectName(draft: string, previous: string): string {
@@ -44,6 +44,6 @@ export function commitProjectName(draft: string, previous: string): string {
 
 export function suggestedMusicaliaFileName(displayName: string): string {
   const safe = displayName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim()
-  const base = safe || 'proyecto'
-  return base.toLowerCase().endsWith('.musicalia') ? base : `${base}.musicalia`
+  const base = (safe || 'proyecto').replace(/\.(?:musicalia|mibemolsi)$/i, '')
+  return `${base}.mibemolsi`
 }
