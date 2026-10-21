@@ -18,8 +18,8 @@ export type SaveHandleResult =
   | { ok: false; reason: 'denied' | 'activation'; error?: unknown }
 
 export const MUSICALIA_SAVE_TYPES = [{
-  description: 'Proyecto Musicalia',
-  accept: { 'application/x-musicalia': ['.musicalia'] }
+  description: 'Proyecto MIBEMOL.SI',
+  accept: { 'application/x-musicalia': ['.mibemolsi', '.musicalia'] }
 }]
 
 export function isActivationError(err: unknown): boolean {

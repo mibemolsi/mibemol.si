@@ -53,8 +53,8 @@ export function hasFileSystemAccess(win: PickerWindow = window as PickerWindow):
 
 export function musicaliaFilePickerTypes() {
   return [{
-    description: 'Proyecto Musicalia',
-    accept: { 'application/x-musicalia': ['.musicalia'] }
+    description: 'Proyecto MIBEMOL.SI',
+    accept: { 'application/x-musicalia': ['.mibemolsi', '.musicalia'] }
   }]
 }
 
@@ -67,9 +67,9 @@ export function buildRegistryEntry(input: {
   bpm: number
   trackCount: number
 }): ProjectRegistryEntry {
-  const fileName = input.fileName.endsWith('.musicalia')
+  const fileName = /\.(?:mibemolsi|musicalia)$/i.test(input.fileName)
     ? input.fileName
-    : `${input.fileName.replace(/\.+$/, '')}.musicalia`
+    : `${input.fileName.replace(/\.+$/, '')}.mibemolsi`
   return {
     id: input.id,
     name: input.name.trim() || UNTITLED_PROJECT_NAME,
@@ -223,7 +223,7 @@ export async function pickMusicaliaFile(): Promise<{ file: File; handle: FileSys
   return new Promise((resolve, reject) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.musicalia,application/x-musicalia'
+    input.accept = '.mibemolsi,.musicalia,application/x-musicalia'
     input.style.display = 'none'
     input.addEventListener('change', () => {
       const file = input.files?.[0]

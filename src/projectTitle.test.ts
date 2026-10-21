@@ -33,16 +33,16 @@ assert(displayProjectName('Proyecto sin título', 'live.musicalia') === 'live', 
 assert(displayProjectName('', null) === UNTITLED_PROJECT_NAME, 'new project is Sin título')
 assert(displayProjectName('Sin título') === UNTITLED_PROJECT_NAME, 'stays Sin título without a file')
 
-assert(projectTabTitle('Demo', false) === 'Demo — Musicalia', 'clean tab title')
-assert(projectTabTitle('Demo', true) === '• Demo — Musicalia', 'dirty tab title prefixes a dot')
-assert(projectTabTitle('', false) === 'Sin título — Musicalia', 'empty display still names the tab')
+assert(projectTabTitle('Demo', false) === 'Demo — MIBEMOL.SI', 'clean tab title')
+assert(projectTabTitle('Demo', true) === '• Demo — MIBEMOL.SI', 'dirty tab title prefixes a dot')
+assert(projectTabTitle('', false) === 'Sin título — MIBEMOL.SI', 'empty display still names the tab')
 
 assert(commitProjectName('  Noche  ', 'Demo') === 'Noche', 'rename trims')
 assert(commitProjectName('   ', 'Demo') === 'Demo', 'empty rename keeps the previous name')
 assert(commitProjectName('', '') === UNTITLED_PROJECT_NAME, 'empty previous falls back to Sin título')
 
-assert(suggestedMusicaliaFileName('Tema demo') === 'Tema demo.musicalia', 'default save file follows the project name')
-assert(suggestedMusicaliaFileName('a/b:c') === 'a_b_c.musicalia', 'strips illegal filename characters')
+assert(suggestedMusicaliaFileName('Tema demo') === 'Tema demo.mibemolsi', 'default save file follows the project name')
+assert(suggestedMusicaliaFileName('a/b:c') === 'a_b_c.mibemolsi', 'strips illegal filename characters')
 
 if (failed > 0) {
   console.error(`\n${failed} assertion(s) failed`)
