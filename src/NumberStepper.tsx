@@ -3,7 +3,7 @@ import {
   STEPPER_HOLD_DELAY_MS,
   STEPPER_HOLD_INTERVAL_MS,
   STEPPER_VALUE_WIDTH_CH
-} from './numberStepper'
+} from './numberStepperUtils'
 
 interface NumberStepperProps {
   value: number

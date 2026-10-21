@@ -131,7 +131,7 @@ import {
   wallDelayForSong
 } from './clipPlayer'
 import { NumberStepper } from './NumberStepper'
-import { formatPitchSemitones, formatTempoRate, parsePitchSemitones, parseTempoRate } from './numberStepper'
+import { formatPitchSemitones, formatTempoRate, parsePitchSemitones, parseTempoRate } from './numberStepperUtils'
 import {
   AISLAR_TRANSPORT_TITLE,
   newLaneJoinsSolo,
@@ -1319,6 +1319,9 @@ function App() {
     const loadGen = projectLoadGenRef.current
     console.log(`[Mount] Starting local project load, gen=${loadGen}`)
     
+    // A public demo URL takes precedence over this browser's local autosave.
+    if (new URLSearchParams(window.location.search).has('demo')) return
+
     loadProject().then(async (state) => {
       if (!state) {
         console.log(`[Mount] No local project found`)
@@ -1788,7 +1791,7 @@ function App() {
   }
   
 
-  const handleOpenFromLocal = async (file: File, opts?: { expectedId?: string; fileHandle?: FileSystemFileHandle | null }) => {
+  const handleOpenFromLocal = async (file: File, opts?: { expectedId?: string; fileHandle?: FileSystemFileHandle | null; source?: 'demo' }) => {
     try {
       setExportProgress('Cargando proyecto...')
       setUploadProgress(5)
@@ -1825,7 +1828,14 @@ function App() {
       setUploadProgress(20)
       setExportProgress('Cargando audio...')
       
-      await ensureAudio()
+      // Loading a public demo is automatic (no user gesture yet), so prepare
+      // the audio graph without awaiting Tone.start(), which browsers block
+      // until the visitor presses Play.
+      if (opts?.source === 'demo') {
+        ensureTrackGains(Math.max((projectData.tracks || []).length, 1))
+      } else {
+        await ensureAudio()
+      }
       ensureTrackGains((projectData.tracks || []).length)
       
       projectLoadGenRef.current++
@@ -1833,7 +1843,7 @@ function App() {
       console.log(`[Open Local] Starting load, gen=${loadGen}`)
       
       const audioFiles = new Map<string, AudioBuffer>()
-      const audioFileNames = Object.keys(contents.files).filter(name => name.endsWith('.wav'))
+      const audioFileNames = Object.keys(contents.files).filter(name => /\.(wav|mp3|ogg)$/i.test(name))
       
       for (let i = 0; i < audioFileNames.length; i++) {
         const fileName = audioFileNames[i]
@@ -1911,7 +1921,7 @@ function App() {
       armDirtySoon(800)
       
       setUploadProgress(100)
-      setToastMessage('Proyecto cargado desde tu computadora')
+      setToastMessage(opts?.source === 'demo' ? 'Demo lista: Cable a Tierra' : 'Proyecto cargado desde tu computadora')
       setShowToast(true)
       setTimeout(() => setShowToast(false), 3000)
       
@@ -1925,6 +1935,36 @@ function App() {
       setExportProgress('')
     }
   }
+
+  // Shared demo audio is deployed as a static site asset; user projects remain local.
+  useEffect(() => {
+    const demoKey = new URLSearchParams(window.location.search).get('demo')
+    if (!demoKey) return
+    const demos: Record<string, string> = {
+      'cable-a-tierra': '/demo/cable-a-tierra.mibemolsi'
+    }
+    const archiveUrl = demos[demoKey]
+    if (!archiveUrl) {
+      setErrorMessage('No encontramos esa demo')
+      return
+    }
+
+    let cancelled = false
+    void fetch(archiveUrl)
+      .then(response => {
+        if (!response.ok) throw new Error('No se pudo descargar la demo')
+        return response.blob()
+      })
+      .then(blob => {
+        if (cancelled) return
+        const file = new File([blob], 'Cable a Tierra.mibemolsi', { type: 'application/zip' })
+        return handleOpenFromLocal(file, { source: 'demo' })
+      })
+      .catch(error => {
+        if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'No se pudo abrir la demo')
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const openMyProjects = async () => {
     if (!currentUser && !hasAuth()) {

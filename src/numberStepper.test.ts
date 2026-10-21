@@ -17,7 +17,7 @@ import {
   parseTempoRate,
   STEPPER_VALUE_WIDTH_CH,
   stepClamped
-} from './numberStepper'
+} from './numberStepperUtils'
 
 let failed = 0
 function assert(cond: boolean, msg: string) {
