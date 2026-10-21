@@ -376,7 +376,7 @@ import {
   trackKindOf
 } from './drumProject'
 
-const APP_VERSION = '0.0101b'
+const APP_VERSION = '0.0102b'
 
 interface ClipboardClip {
   buffer: AudioBuffer
@@ -1921,6 +1921,7 @@ function App() {
       armDirtySoon(800)
       
       setUploadProgress(100)
+      if (opts?.source === 'demo') await new Promise(resolve => window.setTimeout(resolve, 450))
       setToastMessage(opts?.source === 'demo' ? 'Demo lista: Cable a Tierra' : 'Proyecto cargado desde tu computadora')
       setShowToast(true)
       setTimeout(() => setShowToast(false), 3000)
@@ -6921,10 +6922,10 @@ function App() {
         </div>
       )}
       
-      {uploadProgress > 0 && uploadProgress < 100 && (
+      {uploadProgress > 0 && (
         <div className="upload-progress">
           <div className="upload-bar" style={{ width: `${uploadProgress}%` }}></div>
-          <span>{uploadProgress}% subiendo...</span>
+          <span>{uploadProgress >= 100 ? '100% listo' : `${uploadProgress}% subiendo...`}</span>
         </div>
       )}
       
