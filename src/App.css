@@ -8,6 +8,7 @@
 }
 
 .app-titlebar {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -81,6 +82,10 @@
 }
 
 .language-picker {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -104,6 +109,10 @@
   .app-wordmark,
   .app-titlebar-spacer {
     display: none;
+  }
+
+  .language-picker {
+    right: 8px;
   }
 }
 

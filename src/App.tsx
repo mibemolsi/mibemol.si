@@ -1264,8 +1264,8 @@ function App() {
 
   useEffect(() => {
     const shown = displayProjectName(currentProjectName, projectFileName)
-    document.title = projectTabTitle(shown, projectDirty)
-  }, [currentProjectName, projectFileName, projectDirty])
+    document.title = projectTabTitle(shown === UNTITLED_PROJECT_NAME ? t('Sin título') : shown, projectDirty)
+  }, [currentProjectName, projectFileName, projectDirty, language])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -6386,7 +6386,7 @@ function App() {
                 beginProjectRename()
               }}
             >
-              {shownProjectName}
+              {shownProjectName === UNTITLED_PROJECT_NAME ? t('Sin título') : shownProjectName}
             </button>
           )}
           {projectDirty && (
@@ -6800,7 +6800,7 @@ function App() {
               onClick={handleDetectHarmony}
               title={t("Detectar tonalidad y acordes (chroma, en el navegador)")}
             >
-              {harmonyBusy ? 'Analizando…' : 'Detectar acordes'}
+              {harmonyBusy ? t('Analizando…') : t('Detectar acordes')}
             </button>
           </div>
           <button

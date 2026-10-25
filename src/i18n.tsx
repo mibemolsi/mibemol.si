@@ -404,7 +404,11 @@ const translations: Record<Exclude<Language, 'es'>, Record<string, string>> = {
     'Context State': 'Context state',
     'Sample Rate': 'Sample rate',
     'Output Level': 'Output level',
-    'Test Tone (440Hz)': 'Test tone (440Hz)'
+    'Test Tone (440Hz)': 'Test tone (440Hz)',
+    'Sin título': 'Untitled',
+    'Pista': 'Track',
+    'Doble clic para abrir pads y secuenciador': 'Double-click to open pads and sequencer',
+    'Doble clic o arrastrá un archivo de audio': 'Double-click or drag in an audio file'
   },
   pt: {
     'Sesión': 'Conta',
@@ -805,7 +809,11 @@ const translations: Record<Exclude<Language, 'es'>, Record<string, string>> = {
     'Sample Rate': 'Taxa de amostragem',
     'Output Level': 'Nível de saída',
     'Test Tone (440Hz)': 'Tom de teste (440Hz)',
-    'No': 'Não'
+    'No': 'Não',
+    'Sin título': 'Sem título',
+    'Pista': 'Faixa',
+    'Doble clic para abrir pads y secuenciador': 'Clique duas vezes para abrir pads e sequenciador',
+    'Doble clic o arrastrá un archivo de audio': 'Clique duas vezes ou arraste um arquivo de áudio'
   },
 }
 

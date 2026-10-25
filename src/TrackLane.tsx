@@ -1,4 +1,5 @@
 import { t } from './i18n'
+import { useI18n } from './i18n'
 import { memo, useRef } from 'react'
 import { ClipWaveform } from './ClipWaveform'
 import { MetronomeWaveform } from './MetronomeWaveform'
@@ -181,6 +182,7 @@ export const TrackLane = memo(function TrackLane({
   isRecordingLane = false,
   recordingStartOffset = 0
 }: TrackLaneProps) {
+  useI18n()
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
 
@@ -241,9 +243,9 @@ export const TrackLane = memo(function TrackLane({
       ) : (
         <div className="empty-lane">
           <span className="import-hint">
-            {trackKind === 'drum'
+            {t(trackKind === 'drum'
               ? 'Doble clic para abrir pads y secuenciador'
-              : 'Doble clic o arrastrá un archivo de audio'}
+              : 'Doble clic o arrastrá un archivo de audio')}
           </span>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { t } from './i18n'
+import { useI18n } from './i18n'
 import { memo, useRef } from 'react'
 import { LiveParamSlider } from './LiveParamSlider'
 import { resolveTrackName } from './clipSelection'
@@ -82,10 +83,17 @@ export const TrackHeader = memo(function TrackHeader({
   metroClickBadge = null,
   onOpenMetronomeSettings
 }: TrackHeaderProps) {
+  useI18n()
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
-  const displayName = resolveTrackName(name, trackIndex)
   const isMetronome = kind === 'metronome'
+  const rawDisplayName = resolveTrackName(name, trackIndex)
+  const numberedTrack = rawDisplayName.match(/^Pista (\d+)$/)
+  const displayName = isMetronome
+    ? t('Metrónomo')
+    : numberedTrack
+      ? `${t('Pista')} ${numberedTrack[1]}`
+      : rawDisplayName
   const density = headerDensity(height)
 
   return (
