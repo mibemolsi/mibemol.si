@@ -376,7 +376,7 @@ import {
   trackKindOf
 } from './drumProject'
 
-const APP_VERSION = '0.0102b'
+const APP_VERSION = '0.0103b'
 
 interface ClipboardClip {
   buffer: AudioBuffer
@@ -396,6 +396,16 @@ interface ContextMenuState {
   clipId: string | null
   time: number
   kind?: 'header' | 'timeline' | 'empty'
+}
+
+type ProgressivePracticeStatus = 'idle' | 'running' | 'complete'
+
+interface ProgressivePracticeSession {
+  status: ProgressivePracticeStatus
+  completedLoops: number
+  loopsPerStep: number
+  rateStep: number
+  targetBpm: number
 }
 
 interface Clip {
@@ -462,6 +472,20 @@ function App() {
   const clickPassStartRef = useRef(0)
   const clickElapsedSongRef = useRef(0)
   const [isLoopEnabled, setIsLoopEnabled] = useState(false)
+  const [showProgressivePracticeDialog, setShowProgressivePracticeDialog] = useState(false)
+  const [progressivePracticeStatus, setProgressivePracticeStatus] = useState<ProgressivePracticeStatus>('idle')
+  const [progressivePracticeLoops, setProgressivePracticeLoops] = useState(0)
+  const [progressivePracticeTargetBpm, setProgressivePracticeTargetBpm] = useState<number | null>(null)
+  const [progressivePracticeStartRate, setProgressivePracticeStartRate] = useState(0.7)
+  const [progressivePracticeStepRate, setProgressivePracticeStepRate] = useState(0.05)
+  const [progressivePracticeLoopsPerStep, setProgressivePracticeLoopsPerStep] = useState(2)
+  const progressivePracticeRef = useRef<ProgressivePracticeSession>({
+    status: 'idle',
+    completedLoops: 0,
+    loopsPerStep: 2,
+    rateStep: 0.05,
+    targetBpm: 120
+  })
   const [countInBars, _setCountInBars] = useState(2)
   const [isDraggingLoop, setIsDraggingLoop] = useState(false)
   const [loopHoverHit, setLoopHoverHit] = useState<LoopHit>('empty')
@@ -1793,6 +1817,7 @@ function App() {
 
   const handleOpenFromLocal = async (file: File, opts?: { expectedId?: string; fileHandle?: FileSystemFileHandle | null; source?: 'demo' }) => {
     try {
+      if (progressivePracticeRef.current.status !== 'idle') finishProgressivePractice()
       setExportProgress('Cargando proyecto...')
       setUploadProgress(5)
       
@@ -2430,6 +2455,20 @@ function App() {
     }
   }
 
+  const applyProgressiveTempoRate = (rate: number, targetBpm = bpmRef.current, retarget = false) => {
+    const songTime = retarget && isPlayingRef.current ? getSongTime() : null
+    const nextRate = Math.min(1, clampTempoRate(rate))
+    tempoRateRef.current = nextRate
+    setTempoRate(nextRate)
+    Tone.getTransport().bpm.value = effectiveBpm(targetBpm, nextRate)
+    applyAllClipPlayback()
+    if (songTime != null) {
+      stampPlayOrigin(songTime)
+      retargetPlayingClips(songTime)
+    }
+    return nextRate
+  }
+
   const handlePlay = async () => {
     await Tone.start()
     await ensureAudio()
@@ -2498,6 +2537,24 @@ function App() {
         if (isLoopEnabled && loopStart !== null && loopEnd !== null && currentTime >= loopEnd) {
           const span = Math.max(0.05, loopEnd - loopStart)
           currentTime = loopStart + ((currentTime - loopStart) % span)
+          const practice = progressivePracticeRef.current
+          if (practice.status === 'running') {
+            practice.completedLoops += 1
+            setProgressivePracticeLoops(practice.completedLoops)
+            if (practice.completedLoops % practice.loopsPerStep === 0) {
+              const nextRate = applyProgressiveTempoRate(
+                Math.min(1, tempoRateRef.current + practice.rateStep),
+                practice.targetBpm
+              )
+              if (nextRate >= 1) {
+                practice.status = 'complete'
+                setProgressivePracticeStatus('complete')
+                setToastMessage(`¡Tempo original alcanzado: ${formatBpm(practice.targetBpm)} BPM!`)
+                setShowToast(true)
+                window.setTimeout(() => setShowToast(false), 3000)
+              }
+            }
+          }
           stampPlayOrigin(currentTime)
           const meter = currentMetronomeMeter()
           if (meter.clickRepeatEachLoop) {
@@ -4022,6 +4079,10 @@ function App() {
   }, [])
 
   const applySessionBpm = (next: number) => {
+    if (progressivePracticeRef.current.status !== 'idle') {
+      showClipToast('Terminá la práctica progresiva antes de cambiar el BPM')
+      return
+    }
     const newBpm = clampBpm(next)
     bpmManuallySetRef.current = true
     bpmRef.current = newBpm
@@ -4041,6 +4102,50 @@ function App() {
     window.setTimeout(() => setTapFlash(false), 140)
     if (tapped != null) applySessionBpm(tapped)
   }
+
+  const startProgressivePractice = () => {
+    if (loopStartRef.current == null || loopEndRef.current == null) {
+      showClipToast('Marcá una sección con el loop antes de practicar')
+      return
+    }
+    if (isPlayingRef.current || isRecordingRef.current) {
+      showClipToast('Pausá la canción antes de iniciar la práctica progresiva')
+      return
+    }
+    const targetBpm = clampBpm(bpmRef.current)
+    const startRate = Math.min(1, clampTempoRate(progressivePracticeStartRate))
+    progressivePracticeRef.current = {
+      status: 'running',
+      completedLoops: 0,
+      loopsPerStep: progressivePracticeLoopsPerStep,
+      rateStep: progressivePracticeStepRate,
+      targetBpm
+    }
+    setProgressivePracticeStatus('running')
+    setProgressivePracticeLoops(0)
+    setProgressivePracticeTargetBpm(targetBpm)
+    setIsLoopEnabled(true)
+    applyProgressiveTempoRate(startRate, targetBpm)
+    setShowProgressivePracticeDialog(false)
+  }
+
+  const finishProgressivePractice = () => {
+    const targetBpm = progressivePracticeRef.current.targetBpm
+    applyProgressiveTempoRate(1, targetBpm, true)
+    progressivePracticeRef.current = {
+      ...progressivePracticeRef.current,
+      status: 'idle',
+      completedLoops: 0
+    }
+    setProgressivePracticeStatus('idle')
+    setProgressivePracticeLoops(0)
+    setProgressivePracticeTargetBpm(null)
+  }
+
+  const clampTempoRateForPractice = (rate: number) => Math.min(
+    progressivePracticeRef.current.status === 'idle' ? MAX_TEMPO_RATE : 1,
+    clampTempoRate(rate)
+  )
 
   const patchMetronomeMeter = (patch: Partial<MetronomeMeter>) => {
     const idx = findMetronomeIndex(trackStatesRef.current)
@@ -4740,7 +4845,7 @@ function App() {
   }
 
   const handleTempoRate = (raw: number) => {
-    const next = clampTempoRate(raw)
+    const next = clampTempoRateForPractice(raw)
     liveRetempo(next, pitchRef.current)
     setTempoRate(next)
   }
@@ -5634,6 +5739,7 @@ function App() {
   }
 
   const clearLoop = () => {
+    if (progressivePracticeRef.current.status !== 'idle') finishProgressivePractice()
     setLoopStart(null)
     setLoopEnd(null)
     setIsLoopEnabled(false)
@@ -5649,6 +5755,9 @@ function App() {
   }
 
   const handleLoopToggle = () => {
+    if (isLoopEnabledRef.current && progressivePracticeRef.current.status !== 'idle') {
+      finishProgressivePractice()
+    }
     setIsLoopEnabled(prev => !prev)
   }
 
@@ -6573,11 +6682,13 @@ function App() {
               step="0.1"
               inputMode="decimal"
               data-testid="bpm-input"
+              disabled={progressivePracticeStatus !== 'idle'}
             />
             <button
               type="button"
               className="bpm-oct"
               data-testid="bpm-half"
+              disabled={progressivePracticeStatus !== 'idle'}
               title="Dividir el tempo por 2"
               aria-label="Dividir BPM por 2"
               onClick={() => applySessionBpm(halfBpm(bpm))}
@@ -6588,6 +6699,7 @@ function App() {
               type="button"
               className="bpm-oct"
               data-testid="bpm-double"
+              disabled={progressivePracticeStatus !== 'idle'}
               title="Multiplicar el tempo por 2"
               aria-label="Multiplicar BPM por 2"
               onClick={() => applySessionBpm(doubleBpm(bpm))}
@@ -6598,6 +6710,7 @@ function App() {
               type="button"
               className={`bpm-tap ${tapFlash ? 'active' : ''}`}
               data-testid="bpm-tap"
+              disabled={progressivePracticeStatus !== 'idle'}
               title="TAP tempo: tocá el pulso varias veces"
               onClick={handleTapTempo}
             >
@@ -6634,12 +6747,12 @@ function App() {
               <NumberStepper
                 value={tempoRate}
                 min={MIN_TEMPO_RATE}
-                max={MAX_TEMPO_RATE}
+                max={progressivePracticeStatus === 'idle' ? MAX_TEMPO_RATE : 1}
                 step={TEMPO_RATE_STEP}
                 resetValue={TEMPO_RATE_RESET}
                 format={formatTempoRate}
                 parse={parseTempoRate}
-                clamp={clampTempoRate}
+                clamp={clampTempoRateForPractice}
                 onChange={handleTempoRate}
                 ariaLabel="Velocidad de reproducción"
                 testId="vel-stepper"
@@ -6700,9 +6813,32 @@ function App() {
             >
               <IconRepeat size={15} />
             </button>
+            <button
+              type="button"
+              className={`header-btn has-label progressive-practice-trigger${progressivePracticeStatus !== 'idle' ? ' active' : ''}`}
+              data-testid="progressive-practice-open"
+              onClick={() => setShowProgressivePracticeDialog(true)}
+              disabled={loopStart == null || loopEnd == null}
+              title={loopStart == null || loopEnd == null
+                ? 'Marcá una sección con el loop para practicarla progresivamente'
+                : 'Practicar esta sección: subir el tempo gradualmente hasta el BPM original'}
+              aria-pressed={progressivePracticeStatus !== 'idle'}
+            >
+              Progresiva
+            </button>
             {(loopStart !== null && loopEnd !== null) && (
               <div className="loop-indicator">
                 <span className="loop-label">Loop: {loopStart !== null ? formatTime(loopStart) : '--'} → {loopEnd !== null ? formatTime(loopEnd) : '--'}</span>
+                {progressivePracticeStatus === 'running' && (
+                  <span className="progressive-practice-status" data-testid="progressive-practice-status">
+                    Vuelta {progressivePracticeLoops} · {formatBpm(effectiveBpm(progressivePracticeTargetBpm ?? bpm, tempoRate))}/{formatBpm(progressivePracticeTargetBpm ?? bpm)} BPM
+                  </span>
+                )}
+                {progressivePracticeStatus === 'complete' && (
+                  <span className="progressive-practice-status complete" data-testid="progressive-practice-status">
+                    Tempo original alcanzado
+                  </span>
+                )}
                 <button className="transport-button clear-loop" onClick={clearLoop} title="Limpiar loop">Limpiar</button>
               </div>
             )}
@@ -7774,6 +7910,101 @@ function App() {
         </div>
       )}
 
+      {showProgressivePracticeDialog && (
+        <div
+          className="confirm-modal"
+          data-testid="progressive-practice-dialog"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowProgressivePracticeDialog(false)
+          }}
+        >
+          <div className="confirm-dialog progressive-practice-dialog" role="dialog" aria-modal="true" aria-labelledby="progressive-practice-title">
+            <h2 id="progressive-practice-title">Práctica progresiva</h2>
+            <p>
+              Repetí el loop y subí el tempo por etapas. El límite es el BPM original de la canción:
+              {' '}<strong>{formatBpm(progressivePracticeTargetBpm ?? bpm)} BPM</strong>. Nunca lo supera.
+            </p>
+            {progressivePracticeStatus === 'idle' ? (
+              <div className="progressive-practice-fields">
+                <label>
+                  Empezar al
+                  <select
+                    data-testid="progressive-practice-start-rate"
+                    value={progressivePracticeStartRate}
+                    onChange={(e) => setProgressivePracticeStartRate(Number(e.target.value))}
+                  >
+                    {[0.5, 0.6, 0.7, 0.8, 0.9, 0.95].map((rate) => (
+                      <option key={rate} value={rate}>{Math.round(rate * 100)}%</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Subir por etapa
+                  <select
+                    data-testid="progressive-practice-step-rate"
+                    value={progressivePracticeStepRate}
+                    onChange={(e) => setProgressivePracticeStepRate(Number(e.target.value))}
+                  >
+                    <option value={0.05}>5%</option>
+                    <option value={0.1}>10%</option>
+                    <option value={0.15}>15%</option>
+                  </select>
+                </label>
+                <label>
+                  Cada cuántas vueltas
+                  <select
+                    data-testid="progressive-practice-loops-per-step"
+                    value={progressivePracticeLoopsPerStep}
+                    onChange={(e) => setProgressivePracticeLoopsPerStep(Number(e.target.value))}
+                  >
+                    <option value={1}>1 vuelta</option>
+                    <option value={2}>2 vueltas</option>
+                    <option value={4}>4 vueltas</option>
+                  </select>
+                </label>
+                {isPlaying || isRecording ? (
+                  <p className="progressive-practice-hint">Pausá la reproducción y la grabación para iniciar.</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="progressive-practice-progress" data-testid="progressive-practice-progress">
+                {progressivePracticeStatus === 'running' ? (
+                  <>
+                    <strong>Vuelta {progressivePracticeLoops}</strong>
+                    <span>{formatBpm(effectiveBpm(progressivePracticeTargetBpm ?? bpm, tempoRate))} de {formatBpm(progressivePracticeTargetBpm ?? bpm)} BPM</span>
+                  </>
+                ) : (
+                  <strong>¡Llegaste al tempo original!</strong>
+                )}
+                <div className="progressive-practice-meter">
+                  <span style={{ width: `${Math.min(100, tempoRate * 100)}%` }} />
+                </div>
+                <small>La velocidad queda limitada a 1.00× mientras esta práctica esté activa.</small>
+              </div>
+            )}
+            <div className="confirm-actions">
+              <button type="button" className="confirm-cancel" onClick={() => setShowProgressivePracticeDialog(false)}>
+                Cerrar
+              </button>
+              <button
+                type="button"
+                className={progressivePracticeStatus === 'idle' ? 'confirm-danger progressive-practice-start' : 'confirm-danger'}
+                data-testid="progressive-practice-action"
+                disabled={progressivePracticeStatus === 'idle' && (isPlaying || isRecording)}
+                onClick={() => {
+                  if (progressivePracticeStatus === 'idle') startProgressivePractice()
+                  else finishProgressivePractice()
+                }}
+              >
+                {progressivePracticeStatus === 'idle'
+                  ? 'Iniciar práctica'
+                  : progressivePracticeStatus === 'running' ? 'Detener práctica' : 'Finalizar práctica'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {trackDeleteConfirm && (
         <div
           className="confirm-modal"
@@ -7963,6 +8194,7 @@ function App() {
               <ul>
                 <li>• <strong>Tono</strong> - −/+ de a 0.5 semitonos (±12). Doble clic en el valor vuelve a 0. Se puede escribir un número exacto</li>
                 <li>• <strong>Velocidad</strong> - −/+ de a 0.05x (0.50x–1.50x). Doble clic vuelve a 1.00x. El BPM que suena queda al lado del BPM del proyecto (p. ej. 120 → 90)</li>
+                <li>• <strong>Práctica progresiva</strong> - Marcá un loop y subí el tempo cada 1, 2 o 4 vueltas, en pasos de 5%, 10% o 15%. Nunca supera el BPM original de la canción</li>
                 <li>• <strong>Detectar acordes</strong> - Analiza la mezcla o una pista con chroma espectral en el navegador. Muestra la tonalidad (p. ej. La menor) y etiquetas sobre la regla. Pulsá de nuevo para recalcular. Es una heurística: en temas densos o con distorsión puede equivocarse</li>
               </ul>
 
