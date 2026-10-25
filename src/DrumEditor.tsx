@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { useRef, useState } from 'react'
 import {
   DRUM_PAD_MAX,
@@ -65,7 +66,7 @@ export function DrumEditor({
   return (
     <div className="drum-editor" data-testid="drum-editor">
       <div className="drum-editor-toolbar">
-        <div className="drum-pattern-switch" role="group" aria-label="Patrón">
+        <div className="drum-pattern-switch" role="group" aria-label={t("Patrón")}>
           {PATTERN_IDS.map((id) => (
             <button
               key={id}
@@ -84,7 +85,7 @@ export function DrumEditor({
             className={pattern.stepCount === 16 ? 'active' : ''}
             onClick={() => onChangeKit(setSteps(kit, 16))}
           >
-            16
+            {t("16")}
           </button>
           <button
             type="button"
@@ -92,28 +93,28 @@ export function DrumEditor({
             data-testid="drum-steps-32"
             onClick={() => onChangeKit(setSteps(kit, 32))}
           >
-            32
+            {t("32")}
           </button>
         </div>
         <label className="drum-swing">
-          <span>Swing</span>
+          <span>{t("Swing")}</span>
           <input
             type="range"
             min={0}
             max={0.75}
             step={0.01}
             value={kit.swing}
-            aria-label="Swing"
+            aria-label={t("Swing")}
             onChange={(e) => onChangeKit({ ...kit, swing: parseFloat(e.target.value) })}
           />
           <em>{Math.round(kit.swing * 100)}%</em>
         </label>
         <button type="button" className="drum-toolbar-btn" data-testid="drum-place-clip" onClick={onPlaceClip}>
-          Colocar patrón
+          {t("Colocar patrón")}
         </button>
         {kit.padCount < DRUM_PAD_MAX && (
           <button type="button" className="drum-toolbar-btn" data-testid="drum-expand-pads" onClick={onExpandPads}>
-            16 pads
+            {t("16 pads")}
           </button>
         )}
       </div>
@@ -152,7 +153,7 @@ export function DrumEditor({
             <input
               className="drum-pad-title"
               value={pad.name}
-              aria-label="Nombre del pad"
+              aria-label={t("Nombre del pad")}
               onChange={(e) => patchPad({ name: e.target.value })}
             />
             <div className="drum-pad-knobs">
@@ -201,21 +202,21 @@ export function DrumEditor({
                   checked={pad.reverse}
                   onChange={(e) => patchPad({ reverse: e.target.checked })}
                 />
-                Reverse
+                {t("Reverse")}
               </label>
               <label>
-                Choke
+                {t("Choke")}
                 <select
                   value={pad.chokeGroup ?? ''}
                   onChange={(e) =>
                     patchPad({ chokeGroup: e.target.value ? Number(e.target.value) : null })
                   }
                 >
-                  <option value="">No</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4">4</option>
+                  <option value="">{t("No")}</option>
+                  <option value="1">{t("1")}</option>
+                  <option value="2">{t("2")}</option>
+                  <option value="3">{t("3")}</option>
+                  <option value="4">{t("4")}</option>
                 </select>
               </label>
               <button
@@ -227,7 +228,7 @@ export function DrumEditor({
                   fileRef.current?.click()
                 }}
               >
-                Cargar sample
+                {t("Cargar sample")}
               </button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { memo, useEffect, useMemo, useState } from 'react'
 import {
   alignTempoMapToOrigin,
@@ -164,13 +165,13 @@ export const TempoMapMarkers = memo(function TempoMapMarkers({
           <div className="tempo-marker-menu-backdrop" onMouseDown={() => setMenu(null)} />
           <div className="tempo-marker-menu" style={{ left: menu.x, top: menu.y }} data-testid="tempo-marker-menu">
             <button type="button" onClick={() => { onAdd(menu.time + 0.05); setMenu(null) }}>
-              Agregar marca de tempo
+              {t("Agregar marca de tempo")}
             </button>
             <button type="button" onClick={() => { onRemove(menu.id); setMenu(null) }}>
-              Borrar marca
+              {t("Borrar marca")}
             </button>
             <button type="button" onClick={() => { onSetDownbeat(menu.id); setMenu(null) }}>
-              Poner el 1 acá
+              {t("Poner el 1 acá")}
             </button>
           </div>
         </>

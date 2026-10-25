@@ -1,3 +1,5 @@
+import { t } from './i18n'
+import { useI18n } from './i18n'
 import { memo, useRef } from 'react'
 import { ClipWaveform } from './ClipWaveform'
 import { MetronomeWaveform } from './MetronomeWaveform'
@@ -108,12 +110,12 @@ const LaneClipView = memo(function LaneClipView({
       <div
         className="clip-trim-handle left"
         onPointerDown={(e) => onResizeStart(e, trackIndex, clip.id, 'left')}
-        title="Arrastra para recortar desde el inicio"
+        title={t("Arrastra para recortar desde el inicio")}
       />
       <div
         className="clip-body"
         onPointerDown={(e) => onClipDragStart(e, trackIndex, clip.id)}
-        title="Arrastra para mover (clic derecho para editar, Alt+arrastrar para seleccionar, Cmd/Ctrl+Alt+arrastrar para duplicar)"
+        title={t("Arrastra para mover (clic derecho para editar, Alt+arrastrar para seleccionar, Cmd/Ctrl+Alt+arrastrar para duplicar)")}
         style={{ cursor: 'move', touchAction: 'none' }}
       >
         <div className="clip-info">
@@ -140,7 +142,7 @@ const LaneClipView = memo(function LaneClipView({
       <div
         className="clip-trim-handle right"
         onPointerDown={(e) => onResizeStart(e, trackIndex, clip.id, 'right')}
-        title="Arrastra para recortar desde el final"
+        title={t("Arrastra para recortar desde el final")}
       />
     </div>
   )
@@ -180,6 +182,7 @@ export const TrackLane = memo(function TrackLane({
   isRecordingLane = false,
   recordingStartOffset = 0
 }: TrackLaneProps) {
+  useI18n()
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
 
@@ -240,9 +243,9 @@ export const TrackLane = memo(function TrackLane({
       ) : (
         <div className="empty-lane">
           <span className="import-hint">
-            {trackKind === 'drum'
+            {t(trackKind === 'drum'
               ? 'Doble clic para abrir pads y secuenciador'
-              : 'Doble clic o arrastrá un archivo de audio'}
+              : 'Doble clic o arrastrá un archivo de audio')}
           </span>
         </div>
       )}

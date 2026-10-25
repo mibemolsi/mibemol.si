@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import {
   CLICK_DURATION_PRESETS,
   TIME_SIGNATURE_PRESETS,
@@ -60,20 +61,20 @@ export function MetronomeSettingsPanel({
   )
 
   return (
-    <div className="metro-settings" data-testid="metronome-settings" role="dialog" aria-label="Ajustes del metrónomo">
+    <div className="metro-settings" data-testid="metronome-settings" role="dialog" aria-label={t("Ajustes del metrónomo")}>
       <div className="metro-settings-head">
         <div>
-          <div className="metro-settings-kicker">Metrónomo</div>
-          <h3>Compás y clic</h3>
+          <div className="metro-settings-kicker">{t("Metrónomo")}</div>
+          <h3>{t("Compás y clic")}</h3>
         </div>
-        <button type="button" className="metro-settings-close" onClick={onClose} aria-label="Cerrar">
+        <button type="button" className="metro-settings-close" onClick={onClose} aria-label={t("Cerrar")}>
           ×
         </button>
       </div>
 
       <section className="metro-settings-section">
-        <div className="metro-settings-label">Modo</div>
-        <div className="metro-chip-row" role="group" aria-label="Modo del metrónomo">
+        <div className="metro-settings-label">{t("Modo")}</div>
+        <div className="metro-chip-row" role="group" aria-label={t("Modo del metrónomo")}>
           <button
             type="button"
             className={`metro-chip ${meter.followMode === 'fixed' ? 'active' : ''}`}
@@ -81,7 +82,7 @@ export function MetronomeSettingsPanel({
             aria-pressed={meter.followMode === 'fixed'}
             onClick={() => onPatch({ followMode: 'fixed' })}
           >
-            Tempo fijo
+            {t("Tempo fijo")}
           </button>
           <button
             type="button"
@@ -92,11 +93,11 @@ export function MetronomeSettingsPanel({
             title={hasTempoMap ? 'El clic sigue el mapa de beats de la canción' : 'Cargá audio para crear un mapa de beats'}
             onClick={() => onPatch({ followMode: 'follow' })}
           >
-            Seguir la canción
+            {t("Seguir la canción")}
           </button>
         </div>
         {(onReset || onReanalyze) && (
-          <div className="metro-chip-row metro-tempo-actions" role="group" aria-label="Acciones de tempo">
+          <div className="metro-chip-row metro-tempo-actions" role="group" aria-label={t("Acciones de tempo")}>
             {onReset && (
               <button
                 type="button"
@@ -104,7 +105,7 @@ export function MetronomeSettingsPanel({
                 data-testid="reset-tempo"
                 onClick={onReset}
               >
-                Resetear tempo
+                {t("Resetear tempo")}
               </button>
             )}
             {onReanalyze && (
@@ -114,26 +115,26 @@ export function MetronomeSettingsPanel({
                 data-testid="reanalyze-tempo"
                 onClick={onReanalyze}
               >
-                Reanalizar tempo
+                {t("Reanalizar tempo")}
               </button>
             )}
           </div>
         )}
         {hasTempoMap && localBpm != null && !mapUnreliable && (
           <div className="metro-settings-hint" data-testid="local-bpm-readout">
-            Tempo local {formatBpm(localBpm)} BPM
+            {t("Tempo local")} {formatBpm(localBpm)} {t("BPM")}
           </div>
         )}
         {mapUnreliable && (
           <div className="metro-settings-hint" data-testid="tempo-map-fallback-notice">
-            Mapa de tempo inestable — usando tempo fijo.
+            {t("Mapa de tempo inestable — usando tempo fijo.")}
           </div>
         )}
       </section>
 
       <section className="metro-settings-section">
-        <div className="metro-settings-label">Duración</div>
-        <div className="metro-chip-row" role="group" aria-label="Duración del clic">
+        <div className="metro-settings-label">{t("Duración")}</div>
+        <div className="metro-chip-row" role="group" aria-label={t("Duración del clic")}>
           <button
             type="button"
             className={`metro-chip ${meter.clickBars == null ? 'active' : ''}`}
@@ -141,7 +142,7 @@ export function MetronomeSettingsPanel({
             aria-pressed={meter.clickBars == null}
             onClick={() => onPatch({ clickBars: null })}
           >
-            Siempre
+            {t("Siempre")}
           </button>
           {CLICK_DURATION_PRESETS.map((bars) => (
             <button
@@ -152,20 +153,20 @@ export function MetronomeSettingsPanel({
               aria-pressed={meter.clickBars === bars}
               onClick={() => onPatch({ clickBars: bars })}
             >
-              {bars} compases
+              {bars} {t("compases")}
             </button>
           ))}
         </div>
         <div className="metro-custom-meter">
-          <span>Personalizado</span>
+          <span>{t("Personalizado")}</span>
           <input
             type="number"
             min={1}
             max={99}
             className="metro-nd"
             data-testid="click-duration-custom"
-            aria-label="Compases de clic"
-            placeholder="N"
+            aria-label={t("Compases de clic")}
+            placeholder={t("N")}
             value={meter.clickBars ?? ''}
             onChange={(e) => {
               const raw = e.target.value
@@ -185,14 +186,14 @@ export function MetronomeSettingsPanel({
               data-testid="click-repeat-loop"
               onChange={(e) => onPatch({ clickRepeatEachLoop: e.target.checked })}
             />
-            <span>Repetir en cada vuelta del loop</span>
+            <span>{t("Repetir en cada vuelta del loop")}</span>
           </label>
         )}
       </section>
 
       <section className="metro-settings-section">
-        <div className="metro-settings-label">Compás</div>
-        <div className="metro-chip-row" role="group" aria-label="Compás">
+        <div className="metro-settings-label">{t("Compás")}</div>
+        <div className="metro-chip-row" role="group" aria-label={t("Compás")}>
           {TIME_SIGNATURE_PRESETS.map((preset) => {
             const active = meter.numerator === preset.numerator && meter.denominator === preset.denominator
             return (
@@ -210,14 +211,14 @@ export function MetronomeSettingsPanel({
           })}
         </div>
         <div className="metro-custom-meter">
-          <span>Personalizado</span>
+          <span>{t("Personalizado")}</span>
           <input
             type="number"
             min={1}
             max={16}
             className="metro-nd"
             data-testid="meter-numerator"
-            aria-label="Numerador"
+            aria-label={t("Numerador")}
             value={meter.numerator}
             onChange={(e) => onPatch({ numerator: Number(e.target.value) })}
           />
@@ -225,7 +226,7 @@ export function MetronomeSettingsPanel({
           <select
             className="metro-nd"
             data-testid="meter-denominator"
-            aria-label="Denominador"
+            aria-label={t("Denominador")}
             value={meter.denominator}
             onChange={(e) => onPatch({ denominator: Number(e.target.value) })}
           >
@@ -236,7 +237,7 @@ export function MetronomeSettingsPanel({
           <span className="metro-settings-hint">{isPreset ? presetLabel : `${presetLabel} · custom`}</span>
         </div>
         {compound && (
-          <div className="metro-chip-row" role="group" aria-label="Pulso compuesto">
+          <div className="metro-chip-row" role="group" aria-label={t("Pulso compuesto")}>
             <button
               type="button"
               className={`metro-chip ${meter.compoundPulse === 'dotted-quarter' ? 'active' : ''}`}
@@ -244,7 +245,7 @@ export function MetronomeSettingsPanel({
               aria-pressed={meter.compoundPulse === 'dotted-quarter'}
               onClick={() => onPatch({ compoundPulse: 'dotted-quarter' })}
             >
-              Pulso en negra con puntillo
+              {t("Pulso en negra con puntillo")}
             </button>
             <button
               type="button"
@@ -253,7 +254,7 @@ export function MetronomeSettingsPanel({
               aria-pressed={meter.compoundPulse === 'eighth'}
               onClick={() => onPatch({ compoundPulse: 'eighth' })}
             >
-              Pulso en 8vos
+              {t("Pulso en 8vos")}
             </button>
           </div>
         )}
@@ -267,13 +268,13 @@ export function MetronomeSettingsPanel({
             data-testid="accent-downbeat"
             onChange={(e) => onPatch({ accentDownbeat: e.target.checked })}
           />
-          <span>Acentuar el 1</span>
+          <span>{t("Acentuar el 1")}</span>
         </label>
       </section>
 
       <section className="metro-settings-section">
-        <div className="metro-settings-label">Subdivisión</div>
-        <div className="metro-chip-row" role="group" aria-label="Subdivisión">
+        <div className="metro-settings-label">{t("Subdivisión")}</div>
+        <div className="metro-chip-row" role="group" aria-label={t("Subdivisión")}>
           {(['none', 'eighths', 'triplets', 'sixteenths'] as MetronomeSubdivision[]).map((sub) => (
             <button
               key={sub}
@@ -290,8 +291,8 @@ export function MetronomeSettingsPanel({
       </section>
 
       <section className="metro-settings-section">
-        <div className="metro-settings-label">Sonido del clic</div>
-        <div className="metro-chip-row" role="group" aria-label="Sonido del clic">
+        <div className="metro-settings-label">{t("Sonido del clic")}</div>
+        <div className="metro-chip-row" role="group" aria-label={t("Sonido del clic")}>
           {(['wood', 'beep', 'rim'] as ClickSound[]).map((sound) => (
             <button
               key={sound}
@@ -308,9 +309,9 @@ export function MetronomeSettingsPanel({
       </section>
 
       <section className="metro-settings-section metro-align-section">
-        <div className="metro-settings-label">Alinear metrónomo</div>
+        <div className="metro-settings-label">{t("Alinear metrónomo")}</div>
         <p className="metro-settings-copy">
-          Marcá dónde cae el 1 en la canción, o corre el clic en milisegundos. Tempo actual {bpm} BPM.
+          {t("Marcá dónde cae el 1 en la canción, o corre el clic en milisegundos. Tempo actual")} {bpm} {t("BPM.")}
         </p>
         <button
           type="button"
@@ -322,20 +323,20 @@ export function MetronomeSettingsPanel({
           {alignArmed ? 'Hacé click donde está el 1…' : 'Click donde está el 1'}
         </button>
         <div className="metro-phase-row">
-          <span>Fase</span>
+          <span>{t("Fase")}</span>
           <button
             type="button"
             className="metro-phase-nudge"
             data-testid="phase-minus"
             onClick={() => onPhaseMs(phaseMs - 10)}
           >
-            −10 ms
+            {t("−10 ms")}
           </button>
           <input
             type="number"
             className="metro-phase-input"
             data-testid="phase-ms"
-            aria-label="Fase en milisegundos"
+            aria-label={t("Fase en milisegundos")}
             value={phaseMs}
             onChange={(e) => onPhaseMs(Number(e.target.value) || 0)}
           />
@@ -345,7 +346,7 @@ export function MetronomeSettingsPanel({
             data-testid="phase-plus"
             onClick={() => onPhaseMs(phaseMs + 10)}
           >
-            +10 ms
+            {t("+10 ms")}
           </button>
         </div>
       </section>

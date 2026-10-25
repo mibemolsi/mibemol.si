@@ -1,3 +1,5 @@
+import { t } from './i18n'
+import { useI18n } from './i18n'
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tone from 'tone'
@@ -376,7 +378,7 @@ import {
   trackKindOf
 } from './drumProject'
 
-const APP_VERSION = '0.0103b'
+const APP_VERSION = '0.0104b'
 
 interface ClipboardClip {
   buffer: AudioBuffer
@@ -439,6 +441,7 @@ interface TrackState {
 }
 
 function App() {
+  const { language, setLanguage } = useI18n()
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -1285,8 +1288,8 @@ function App() {
 
   useEffect(() => {
     const shown = displayProjectName(currentProjectName, projectFileName)
-    document.title = projectTabTitle(shown, projectDirty)
-  }, [currentProjectName, projectFileName, projectDirty])
+    document.title = projectTabTitle(shown === UNTITLED_PROJECT_NAME ? t('Sin título') : shown, projectDirty)
+  }, [currentProjectName, projectFileName, projectDirty, language])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -6454,7 +6457,7 @@ function App() {
       />
 
       <div className="app-titlebar">
-        <span className="app-wordmark">MIBEMOL.SI</span>
+        <span className="app-wordmark">{t("MIBEMOL.SI")}</span>
         <div
           className={`project-title${projectDirty ? ' dirty' : ''}${renamingProject ? ' editing' : ''}`}
           data-testid="project-title"
@@ -6467,7 +6470,7 @@ function App() {
               className="project-title-input"
               data-testid="project-title-input"
               value={projectNameDraft}
-              aria-label="Nombre del proyecto"
+              aria-label={t("Nombre del proyecto")}
               onChange={(e) => setProjectNameDraft(e.target.value)}
               onKeyDown={(e) => {
                 e.stopPropagation()
@@ -6492,19 +6495,27 @@ function App() {
                 beginProjectRename()
               }}
             >
-              {shownProjectName}
+              {shownProjectName === UNTITLED_PROJECT_NAME ? t('Sin título') : shownProjectName}
             </button>
           )}
           {projectDirty && (
-            <span className="project-title-dot" data-testid="project-title-dirty" aria-label="Cambios sin guardar">•</span>
+            <span className="project-title-dot" data-testid="project-title-dirty" aria-label={t("Cambios sin guardar")}>•</span>
           )}
         </div>
         <span className="app-titlebar-spacer" aria-hidden="true" />
+        <label className="language-picker" aria-label={t('Idioma')}>
+          <span aria-hidden="true">🌐</span>
+          <select value={language} onChange={(event) => setLanguage(event.target.value as 'es' | 'en' | 'pt')} aria-label={t('Idioma')}>
+            <option value="es">Español</option>
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+          </select>
+        </label>
       </div>
       
       <div className="transport-bar">
-        <div className="tb-group tb-project" role="group" aria-label="Proyecto">
-          <button className="header-btn icon-only" onClick={handleNewProject} title="Nuevo proyecto" aria-label="Nuevo proyecto">
+        <div className="tb-group tb-project" role="group" aria-label={t("Proyecto")}>
+          <button className="header-btn icon-only" onClick={handleNewProject} title={t("Nuevo proyecto")} aria-label={t("Nuevo proyecto")}>
             <IconFilePlus />
           </button>
           {currentUser ? (
@@ -6520,10 +6531,10 @@ function App() {
             <button
               className="header-btn"
               onClick={() => { setShowAuth(true); setAuthMode('login') }}
-              title="Iniciar sesión"
+              title={t("Iniciar sesión")}
             >
               <IconLogIn />
-              <span className="btn-label">Sesión</span>
+              <span className="btn-label">{t("Sesión")}</span>
             </button>
           )}
           <button
@@ -6536,46 +6547,46 @@ function App() {
               : 'Guardar proyecto (Cmd/Ctrl+S)'}
           >
             <IconSave />
-            <span className="btn-label">Guardar{saveUnsaved ? ' •' : ''}</span>
+            <span className="btn-label">{t("Guardar")}{saveUnsaved ? ' •' : ''}</span>
           </button>
           <button
             className="header-btn"
             data-testid="save-as-button"
             onClick={() => handleSaveToLocal(true)}
-            title="Guardar como… (Shift+Cmd/Ctrl+S)"
-            aria-label="Guardar como"
+            title={t("Guardar como… (Shift+Cmd/Ctrl+S)")}
+            aria-label={t("Guardar como")}
           >
             <IconSaveAs />
-            <span className="btn-label">Guardar como…</span>
+            <span className="btn-label">{t("Guardar como…")}</span>
           </button>
           <button
             className="header-btn"
             onClick={() => { void handleOpenProjectClick() }}
-            title="Abrir proyecto"
+            title={t("Abrir proyecto")}
           >
             <IconFolderOpen />
-            <span className="btn-label">Abrir</span>
+            <span className="btn-label">{t("Abrir")}</span>
           </button>
           <button
             className="header-btn"
             data-testid="my-projects-button"
             onClick={() => { void openMyProjects() }}
-            title="Mis proyectos"
-            aria-label="Mis proyectos"
+            title={t("Mis proyectos")}
+            aria-label={t("Mis proyectos")}
           >
             <IconList />
-            <span className="btn-label">Mis proyectos</span>
+            <span className="btn-label">{t("Mis proyectos")}</span>
           </button>
         </div>
 
         <div className="tb-sep" aria-hidden="true" />
 
-        <div className="tb-group tb-transport transport-playback" role="group" aria-label="Transporte">
+        <div className="tb-group tb-transport transport-playback" role="group" aria-label={t("Transporte")}>
           <button
             className="transport-button icon-btn"
             onClick={handleJumpToStart}
-            title="Ir al inicio"
-            aria-label="Ir al inicio"
+            title={t("Ir al inicio")}
+            aria-label={t("Ir al inicio")}
           >
             <IconSkipBack size={15} />
           </button>
@@ -6583,8 +6594,8 @@ function App() {
             className={`transport-button icon-btn play-btn ${isPlaying ? 'active' : ''}`}
             onClick={handlePlay}
             disabled={isPlaying || isRecording}
-            title="Reproducir"
-            aria-label="Reproducir"
+            title={t("Reproducir")}
+            aria-label={t("Reproducir")}
           >
             <IconPlay size={14} />
           </button>
@@ -6592,8 +6603,8 @@ function App() {
             className="transport-button icon-btn"
             onClick={handlePause}
             disabled={!isPlaying && !isRecording}
-            title="Pausar"
-            aria-label="Pausar"
+            title={t("Pausar")}
+            aria-label={t("Pausar")}
           >
             <IconPause size={14} />
           </button>
@@ -6601,8 +6612,8 @@ function App() {
             className="transport-button icon-btn"
             onClick={handleStop}
             disabled={!isPlaying && !isPaused && !isRecording}
-            title="Detener"
-            aria-label="Detener"
+            title={t("Detener")}
+            aria-label={t("Detener")}
           >
             <IconStop size={13} />
           </button>
@@ -6612,7 +6623,7 @@ function App() {
             data-recording-track={recordingTrackIndex ?? ''}
             onClick={() => { void handleRecord() }}
             title={isRecording ? 'Detener grabación' : 'Grabar'}
-            aria-label="Grabar"
+            aria-label={t("Grabar")}
             aria-pressed={isRecording}
           >
             <IconRecord size={14} />
@@ -6622,8 +6633,8 @@ function App() {
               type="button"
               className={`transport-button icon-btn ${showLatencyPanel ? 'active' : ''}`}
               data-testid="record-latency-button"
-              title="Calibrar latencia"
-              aria-label="Calibrar latencia"
+              title={t("Calibrar latencia")}
+              aria-label={t("Calibrar latencia")}
               aria-expanded={showLatencyPanel}
               disabled={isRecording}
               onClick={() => setShowLatencyPanel((open) => !open)}
@@ -6653,8 +6664,8 @@ function App() {
                   : (audioInputs[0]?.deviceId ?? '')
               }
               onChange={(e) => handleMicDeviceChange(e.target.value)}
-              title="Entrada de audio"
-              aria-label="Entrada de audio"
+              title={t("Entrada de audio")}
+              aria-label={t("Entrada de audio")}
               disabled={isRecording}
             >
               {audioInputs.map((device, index) => (
@@ -6669,9 +6680,9 @@ function App() {
 
         <div className="tb-sep" aria-hidden="true" />
 
-        <div className="tb-group tb-tempo" role="group" aria-label="Tempo">
+        <div className="tb-group tb-tempo" role="group" aria-label={t("Tempo")}>
           <div className="bpm-control" data-testid="bpm-control">
-            <span className="bpm-label">BPM</span>
+            <span className="bpm-label">{t("BPM")}</span>
             <input
               type="number"
               className="bpm-input"
@@ -6688,46 +6699,43 @@ function App() {
               type="button"
               className="bpm-oct"
               data-testid="bpm-half"
-              disabled={progressivePracticeStatus !== 'idle'}
-              title="Dividir el tempo por 2"
-              aria-label="Dividir BPM por 2"
+              title={t("Dividir el tempo por 2")}
+              aria-label={t("Dividir BPM por 2")}
               onClick={() => applySessionBpm(halfBpm(bpm))}
             >
-              ÷2
+              {t("÷2")}
             </button>
             <button
               type="button"
               className="bpm-oct"
               data-testid="bpm-double"
-              disabled={progressivePracticeStatus !== 'idle'}
-              title="Multiplicar el tempo por 2"
-              aria-label="Multiplicar BPM por 2"
+              title={t("Multiplicar el tempo por 2")}
+              aria-label={t("Multiplicar BPM por 2")}
               onClick={() => applySessionBpm(doubleBpm(bpm))}
             >
-              ×2
+              {t("×2")}
             </button>
             <button
               type="button"
               className={`bpm-tap ${tapFlash ? 'active' : ''}`}
               data-testid="bpm-tap"
-              disabled={progressivePracticeStatus !== 'idle'}
-              title="TAP tempo: tocá el pulso varias veces"
+              title={t("TAP tempo: tocá el pulso varias veces")}
               onClick={handleTapTempo}
             >
-              TAP
+              {t("TAP")}
             </button>
             <span
               className="bpm-effective"
               data-testid="bpm-effective"
               data-active={Math.abs(tempoRate - 1) > 0.001 ? 'true' : 'false'}
-              title="BPM que suena con la velocidad actual"
+              title={t("BPM que suena con la velocidad actual")}
             >
               → {effectiveBpm(bpm, tempoRate)}
             </span>
           </div>
           <div className="pitch-tempo-controls">
-            <div className="pt-field" title="Tono global, ±12 semitonos">
-              <span>Tono</span>
+            <div className="pt-field" title={t("Tono global, ±12 semitonos")}>
+              <span>{t("Tono")}</span>
               <NumberStepper
                 value={pitchSemitones}
                 min={MIN_PITCH_SEMITONES}
@@ -6742,8 +6750,8 @@ function App() {
                 testId="tono-stepper"
               />
             </div>
-            <div className="pt-field" title="Velocidad 0.5x–1.5x (GrainPlayer)">
-              <span>Vel.</span>
+            <div className="pt-field" title={t("Velocidad 0.5x–1.5x (GrainPlayer)")}>
+              <span>{t("Vel.")}</span>
               <NumberStepper
                 value={tempoRate}
                 min={MIN_TEMPO_RATE}
@@ -6763,8 +6771,8 @@ function App() {
             className={`header-btn icon-only toggle-btn ${metronomeEnabled ? 'active' : ''}`}
             data-testid="metronome-toolbar"
             onClick={toggleMetronomeTrack}
-            title="Metrónomo: activa o silencia la pista Metrónomo (mismo Mute). Nunca hay dos clics a la vez."
-            aria-label="Metrónomo"
+            title={t("Metrónomo: activa o silencia la pista Metrónomo (mismo Mute). Nunca hay dos clics a la vez.")}
+            aria-label={t("Metrónomo")}
             aria-pressed={metronomeEnabled}
           >
             <IconMetronome size={15} />
@@ -6773,8 +6781,8 @@ function App() {
 
         <div className="tb-sep" aria-hidden="true" />
 
-        <div className="tb-group tb-tools" role="group" aria-label="Herramientas">
-          <div className="tb-edit-toggles" data-testid="toolbar-edit-toggles" role="group" aria-label="Edición">
+        <div className="tb-group tb-tools" role="group" aria-label={t("Herramientas")}>
+          <div className="tb-edit-toggles" data-testid="toolbar-edit-toggles" role="group" aria-label={t("Edición")}>
             <button
               className={`header-btn toggle-btn ${snapEnabled ? 'active' : ''}`}
               data-testid="snap-toggle"
@@ -6787,10 +6795,10 @@ function App() {
                 })
               }}
               title={`Snap ${snapEnabled ? 'ON' : 'OFF'}. Ajuste a cuadrícula (por defecto OFF). Shift invierte el snap mientras arrastras`}
-              aria-label="Snap"
+              aria-label={t("Snap")}
             >
               <IconGrid />
-              <span className="btn-label snap-label">Snap {snapEnabled ? 'ON' : 'OFF'}</span>
+              <span className="btn-label snap-label">{t("Snap")} {snapEnabled ? 'ON' : 'OFF'}</span>
             </button>
             <button
               className={`header-btn toggle-btn ${magnetEnabled ? 'active' : ''}`}
@@ -6798,17 +6806,17 @@ function App() {
               aria-pressed={magnetEnabled}
               onClick={() => setMagnetEnabled((prev) => !prev)}
               title={`Imán ${magnetEnabled ? 'ON' : 'OFF'}. Encaja el inicio o el final del clip con otros clips (cualquier pista) y con 0. Por defecto OFF. Alt lo apaga mientras arrastrás`}
-              aria-label="Imán"
+              aria-label={t("Imán")}
             >
               <IconMagnet />
-              <span className="btn-label snap-label">Imán {magnetEnabled ? 'ON' : 'OFF'}</span>
+              <span className="btn-label snap-label">{t("Imán")} {magnetEnabled ? 'ON' : 'OFF'}</span>
             </button>
             <button
               className={`header-btn icon-only toggle-btn ${isLoopEnabled ? 'active' : ''}`}
               data-testid="loop-toggle"
               onClick={handleLoopToggle}
-              title="Activar loop — arrastrá en la regla para marcar la zona"
-              aria-label="Loop"
+              title={t("Activar loop — arrastrá en la regla para marcar la zona")}
+              aria-label={t("Loop")}
               aria-pressed={isLoopEnabled}
             >
               <IconRepeat size={15} />
@@ -6844,13 +6852,13 @@ function App() {
             )}
           </div>
           <div className="time-display">
-            <span className="time-label">Time</span>
+            <span className="time-label">{t("Time")}</span>
             <span className="time-value" ref={timeDisplayRef}>
               {formatTime(playheadPosition)} / {formatTime(getMaxDuration())}
             </span>
           </div>
           <div className="zoom-controls">
-            <span className="zoom-label" title="Zoom horizontal (Ctrl/Cmd+Rueda)"><IconMoveHorizontal size={14} /></span>
+            <span className="zoom-label" title={t("Zoom horizontal (Ctrl/Cmd+Rueda)")}><IconMoveHorizontal size={14} /></span>
             <input
               type="range"
               className="zoom-slider"
@@ -6865,7 +6873,7 @@ function App() {
               }}
               title={`Zoom horizontal: ${horizontalZoom >= 10 ? horizontalZoom.toFixed(0) : horizontalZoom.toFixed(2)}×`}
             />
-            <span className="zoom-label" title="Zoom vertical (Shift+Rueda)"><IconMoveVertical size={14} /></span>
+            <span className="zoom-label" title={t("Zoom vertical (Shift+Rueda)")}><IconMoveVertical size={14} /></span>
             <input
               type="range"
               className="zoom-slider"
@@ -6883,9 +6891,9 @@ function App() {
               className={`header-btn has-label ${practiceIndex != null ? 'active' : ''}`}
               data-testid="practice-transport"
               onClick={handlePracticeFromTransport}
-              title="Practicar encima: silencia la pista seleccionada y deja el resto, para tocar o cantar"
+              title={t("Practicar encima: silencia la pista seleccionada y deja el resto, para tocar o cantar")}
             >
-              Practicar encima
+              {t("Practicar encima")}
             </button>
             <button
               type="button"
@@ -6896,12 +6904,12 @@ function App() {
               onClick={handleAislarFromTransport}
               title={AISLAR_TRANSPORT_TITLE}
             >
-              Aislar
+              {t("Aislar")}
             </button>
           </div>
           <div className="harmony-controls">
             {harmony?.key.label && (
-              <span className="key-badge" title="Tonalidad detectada">{harmony.key.label}</span>
+              <span className="key-badge" title={t("Tonalidad detectada")}>{harmony.key.label}</span>
             )}
             <select
               className="harmony-source"
@@ -6910,9 +6918,9 @@ function App() {
                 const v = e.target.value
                 setHarmonySource(v === 'mix' ? 'mix' : parseInt(v, 10))
               }}
-              aria-label="Fuente de análisis de acordes"
+              aria-label={t("Fuente de análisis de acordes")}
             >
-              <option value="mix">Mezcla</option>
+              <option value="mix">{t("Mezcla")}</option>
               {trackStates.map((track, i) => (
                 <option key={i} value={i}>{resolveTrackName(track.name, i)}</option>
               ))}
@@ -6923,40 +6931,40 @@ function App() {
               data-testid="detect-harmony"
               disabled={harmonyBusy}
               onClick={handleDetectHarmony}
-              title="Detectar tonalidad y acordes (chroma, en el navegador)"
+              title={t("Detectar tonalidad y acordes (chroma, en el navegador)")}
             >
-              {harmonyBusy ? 'Analizando…' : 'Detectar acordes'}
+              {harmonyBusy ? t('Analizando…') : t('Detectar acordes')}
             </button>
           </div>
           <button
             className="header-btn"
             onClick={handleOpenExportDialog}
-            title="Exportar pistas seleccionadas"
+            title={t("Exportar pistas seleccionadas")}
           >
             <IconDownload />
-            <span className="btn-label">Exportar</span>
+            <span className="btn-label">{t("Exportar")}</span>
           </button>
           <button
             className="header-btn"
             onClick={() => setShowHelp(true)}
-            title="Atajos de teclado"
+            title={t("Atajos de teclado")}
           >
             <IconCircleHelp />
-            <span className="btn-label">Ayuda</span>
+            <span className="btn-label">{t("Ayuda")}</span>
           </button>
           <div className="header-info">
             <div className="audio-diagnostics">
-              <span title="Context State">{Tone.getContext().state}</span>
-              <span title="Sample Rate">{Tone.getContext().sampleRate}Hz</span>
-              <span ref={meterDisplayRef} title="Output Level" className="level-inactive">
+              <span title={t("Context State")}>{Tone.getContext().state}</span>
+              <span title={t("Sample Rate")}>{Tone.getContext().sampleRate}{t("Hz")}</span>
+              <span ref={meterDisplayRef} title={t("Output Level")} className="level-inactive">
                 -∞
               </span>
-              <button className="test-tone-btn" onClick={playTestTone} title="Test Tone (440Hz)" aria-label="Tono de prueba">
+              <button className="test-tone-btn" onClick={playTestTone} title={t("Test Tone (440Hz)")} aria-label={t("Tono de prueba")}>
                 <IconVolume2 size={13} />
               </button>
             </div>
             <div className="version-badge">
-              <span className="version-label">v{APP_VERSION}</span>
+              <span className="version-label">{t("v")}{APP_VERSION}</span>
             </div>
           </div>
         </div>
@@ -6964,7 +6972,7 @@ function App() {
 
       {fileDragActive && (
         <div className="drop-overlay" data-testid="drop-overlay">
-          <span>Soltá archivos de audio</span>
+          <span>{t("Soltá archivos de audio")}</span>
         </div>
       )}
 
@@ -6994,12 +7002,12 @@ function App() {
       )}
       
       {showToast && toastMessage && (
-        <div className="toast">✓ {toastMessage}</div>
+        <div className="toast">✓ {t(toastMessage)}</div>
       )}
       
       {errorMessage && (
         <div className="error-toast">
-          {errorMessage}
+          {t(errorMessage)}
           <button onClick={() => setErrorMessage(null)}>×</button>
         </div>
       )}
@@ -7013,10 +7021,9 @@ function App() {
           }}
         >
           <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="file-save-permission-title">
-            <h2 id="file-save-permission-title">Chrome necesita permiso para guardar en tu archivo</h2>
+            <h2 id="file-save-permission-title">{t("Chrome necesita permiso para guardar en tu archivo")}</h2>
             <p>
-              El clic de Guardar se usó para armar el proyecto y Chrome ya no deja escribir.
-              Tocá un botón para autorizar de nuevo. No se perdió nada: el proyecto sigue en esta sesión.
+              {t("El clic de Guardar se usó para armar el proyecto y Chrome ya no deja escribir.\n              Tocá un botón para autorizar de nuevo. No se perdió nada: el proyecto sigue en esta sesión.")}
             </p>
             <div className="confirm-actions file-save-prompt-actions">
               <button
@@ -7025,7 +7032,7 @@ function App() {
                 data-testid="file-save-permit"
                 onClick={retryPermitAndSave}
               >
-                Permitir y guardar
+                {t("Permitir y guardar")}
               </button>
               <button
                 type="button"
@@ -7036,7 +7043,7 @@ function App() {
                   void handleSaveToLocal(true)
                 }}
               >
-                Guardar como…
+                {t("Guardar como…")}
               </button>
               <button
                 type="button"
@@ -7048,10 +7055,10 @@ function App() {
                   void saveFallbackDownload(name)
                 }}
               >
-                Descargar .mibemolsi
+                {t("Descargar .mibemolsi")}
               </button>
               <button type="button" className="confirm-cancel" onClick={() => setFileSavePrompt(null)}>
-                Ahora no
+                {t("Ahora no")}
               </button>
             </div>
           </div>
@@ -7068,9 +7075,9 @@ function App() {
       {showExportDialog && (
         <div className="drive-projects-modal">
           <div className="modal-content">
-            <h2>Exportar proyecto</h2>
+            <h2>{t("Exportar proyecto")}</h2>
             <p style={{ fontSize: '13px', color: '#999', marginBottom: '16px' }}>
-              Configura las opciones de exportación
+              {t("Configura las opciones de exportación")}
             </p>
             
             <div style={{ marginBottom: '16px', padding: '12px', background: '#2a2a2a', borderRadius: '4px' }}>
@@ -7081,7 +7088,7 @@ function App() {
                   onChange={(e) => setExportMixed(e.target.checked)}
                   style={{ marginRight: '8px' }}
                 />
-                <span>Mezclar todo en un archivo (en vez de pistas separadas)</span>
+                <span>{t("Mezclar todo en un archivo (en vez de pistas separadas)")}</span>
               </label>
               
               <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -7091,12 +7098,12 @@ function App() {
                   onChange={(e) => setExportIncludeCountIn(e.target.checked)}
                   style={{ marginRight: '8px' }}
                 />
-                <span>Incluir metrónomo de entrada (2 compases)</span>
+                <span>{t("Incluir metrónomo de entrada (2 compases)")}</span>
               </label>
             </div>
             
             <p style={{ fontSize: '13px', color: '#999', marginBottom: '12px' }}>
-              Selecciona las pistas a incluir
+              {t("Selecciona las pistas a incluir")}
             </p>
             <div className="export-tracks-list">
               {trackStates.map((track, i) => (
@@ -7112,15 +7119,15 @@ function App() {
                       }}
                     />
                     <span className="track-name">{track.name}</span>
-                    {track.solo && <span className="track-badge solo">S</span>}
-                    {track.mute && <span className="track-badge mute">M</span>}
+                    {track.solo && <span className="track-badge solo">{t("S")}</span>}
+                    {track.mute && <span className="track-badge mute">{t("M")}</span>}
                   </label>
                 )
               ))}
             </div>
             <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setShowExportDialog(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleExport}>Exportar</button>
+              <button className="btn btn-ghost" onClick={() => setShowExportDialog(false)}>{t("Cancelar")}</button>
+              <button className="btn btn-primary" onClick={handleExport}>{t("Exportar")}</button>
             </div>
           </div>
         </div>
@@ -7158,7 +7165,7 @@ function App() {
                     type="email"
                     name="email"
                     className="field-input"
-                    placeholder="Email"
+                    placeholder={t("Email")}
                     required
                     disabled={authLoading}
                   />
@@ -7166,7 +7173,7 @@ function App() {
                     type="password"
                     name="password"
                     className="field-input"
-                    placeholder="Contraseña"
+                    placeholder={t("Contraseña")}
                     required
                     disabled={authLoading}
                   />
@@ -7179,7 +7186,7 @@ function App() {
                     onClick={() => { setAuthMode('register'); setErrorMessage(null) }}
                     disabled={authLoading}
                   >
-                    ¿No tienes cuenta? Crear una
+                    {t("¿No tienes cuenta? Crear una")}
                   </button>
                 </div>
               </form>
@@ -7199,7 +7206,7 @@ function App() {
                     type="text"
                     name="username"
                     className="field-input"
-                    placeholder="Usuario"
+                    placeholder={t("Usuario")}
                     required
                     minLength={3}
                     disabled={authLoading}
@@ -7208,7 +7215,7 @@ function App() {
                     type="email"
                     name="email"
                     className="field-input"
-                    placeholder="Email"
+                    placeholder={t("Email")}
                     required
                     disabled={authLoading}
                   />
@@ -7216,7 +7223,7 @@ function App() {
                     type="password"
                     name="password"
                     className="field-input"
-                    placeholder="Contraseña (mínimo 6 caracteres)"
+                    placeholder={t("Contraseña (mínimo 6 caracteres)")}
                     required
                     minLength={6}
                     disabled={authLoading}
@@ -7230,12 +7237,12 @@ function App() {
                     onClick={() => { setAuthMode('login'); setErrorMessage(null) }}
                     disabled={authLoading}
                   >
-                    ¿Ya tienes cuenta? Iniciar sesión
+                    {t("¿Ya tienes cuenta? Iniciar sesión")}
                   </button>
                 </div>
               </form>
             )}
-            <button className="btn btn-ghost" onClick={() => { setShowAuth(false); setErrorMessage(null); setAuthLoading(false) }}>Cerrar</button>
+            <button className="btn btn-ghost" onClick={() => { setShowAuth(false); setErrorMessage(null); setAuthLoading(false) }}>{t("Cerrar")}</button>
           </div>
         </div>
       )}
@@ -7317,17 +7324,17 @@ function App() {
                 {fxOpenTracks.includes(trackIndex) && (
                   <div className="fx-side" style={{ height: `${FX_RACK_HEIGHT}px` }}>
                     <IconSliders size={13} />
-                    <span className="fx-side-label">FX</span>
+                    <span className="fx-side-label">{t("FX")}</span>
                   </div>
                 )}
                 {autoOpenTracks.includes(trackIndex) && (
                   <div className="auto-side" style={{ height: `${AUTO_LANE_HEIGHT}px` }}>
                     <IconSpline size={13} />
-                    <span className="auto-side-label">Auto</span>
+                    <span className="auto-side-label">{t("Auto")}</span>
                     <select
                       className="auto-param-select"
                       value={autoParamByTrack[trackIndex] ?? 'volume'}
-                      aria-label="Parámetro de automatización"
+                      aria-label={t("Parámetro de automatización")}
                       onChange={(e) => {
                         const paramId = e.target.value
                         setAutoParamByTrack((prev) => ({ ...prev, [trackIndex]: paramId }))
@@ -7348,7 +7355,7 @@ function App() {
               type="button"
               className="add-track-button"
               data-testid="add-track-button"
-              title="Agregar pista"
+              title={t("Agregar pista")}
               onClick={addEmptyTrack}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -7364,24 +7371,24 @@ function App() {
               }}
             >
               <IconPlus size={14} />
-              Agregar pista
+              {t("Agregar pista")}
             </button>
             <button
               type="button"
               className="add-track-button add-drum-track-button"
               data-testid="add-drum-track"
-              title="Agregar pista de pads"
+              title={t("Agregar pista de pads")}
               onClick={() => { void addDrumTrack() }}
             >
               <IconDrum size={14} />
-              Batería (pads)
+              {t("Batería (pads)")}
             </button>
           </div>
         </div>
         <div 
           className="resize-handle"
           onMouseDown={() => setIsResizing(true)}
-          title="Drag to resize sidebar"
+          title={t("Drag to resize sidebar")}
         />
         <div
           className="lanes-column"
@@ -7431,7 +7438,7 @@ function App() {
             style={{ minWidth: `${100 * horizontalZoom}%` }}
           >
           {harmony && (
-            <div className="chord-ruler" aria-label="Acordes">
+            <div className="chord-ruler" aria-label={t("Acordes")}>
               {harmony.chords.map((chord, i) => (
                 <span
                   key={`${chord.t}-${i}`}
@@ -7860,19 +7867,19 @@ function App() {
           }}
         >
           <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="move-selection-title">
-            <h2 id="move-selection-title">Mover selección</h2>
-            <p>Desplaza todos los clips seleccionados. Negativo = hacia la izquierda. Ninguno pasa de 0:00.</p>
+            <h2 id="move-selection-title">{t("Mover selección")}</h2>
+            <p>{t("Desplaza todos los clips seleccionados. Negativo = hacia la izquierda. Ninguno pasa de 0:00.")}</p>
             <div className="move-selection-row">
               <input
                 type="text"
                 inputMode="decimal"
-                aria-label="Cantidad"
+                aria-label={t("Cantidad")}
                 data-testid="move-selection-amount"
                 value={moveSelectionDialog.amount}
                 onChange={(e) => setMoveSelectionDialog({ ...moveSelectionDialog, amount: e.target.value })}
               />
               <select
-                aria-label="Unidad"
+                aria-label={t("Unidad")}
                 data-testid="move-selection-unit"
                 value={moveSelectionDialog.unit}
                 onChange={(e) => setMoveSelectionDialog({
@@ -7880,13 +7887,13 @@ function App() {
                   unit: e.target.value === 'seconds' ? 'seconds' : 'beats'
                 })}
               >
-                <option value="beats">beats</option>
-                <option value="seconds">segundos</option>
+                <option value="beats">{t("beats")}</option>
+                <option value="seconds">{t("segundos")}</option>
               </select>
             </div>
             <div className="confirm-actions">
               <button type="button" className="confirm-cancel" onClick={() => setMoveSelectionDialog(null)}>
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 type="button"
@@ -7903,7 +7910,7 @@ function App() {
                   applySelectionTimeDelta(seconds, 'Selección movida')
                 }}
               >
-                Mover
+                {t("Mover")}
               </button>
             </div>
           </div>
@@ -8013,22 +8020,22 @@ function App() {
           }}
         >
           <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="track-delete-title">
-            <h2 id="track-delete-title">Eliminar pista</h2>
+            <h2 id="track-delete-title">{t("Eliminar pista")}</h2>
             <p>
-              ¿Eliminar la pista «{trackDeleteConfirm.name}» y {trackDeleteConfirm.clipCount === 1
+              {t("¿Eliminar la pista «")}{trackDeleteConfirm.name}{t("» y")} {trackDeleteConfirm.clipCount === 1
                 ? 'su clip'
-                : `sus ${trackDeleteConfirm.clipCount} clips`}? Esta acción se puede deshacer.
+                : `sus ${trackDeleteConfirm.clipCount} clips`}{t("? Esta acción se puede deshacer.")}
             </p>
             <div className="confirm-actions">
               <button type="button" className="confirm-cancel" onClick={() => setTrackDeleteConfirm(null)}>
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 type="button"
                 className="confirm-danger"
                 onClick={() => deleteTrackAt(trackDeleteConfirm.trackIndex)}
               >
-                Eliminar pista
+                {t("Eliminar pista")}
               </button>
             </div>
           </div>
@@ -8039,9 +8046,9 @@ function App() {
         <div className="drum-editor-dock" data-testid="drum-editor-dock">
           <div className="drum-editor-dock-bar">
             <strong>{resolveTrackName(trackStates[drumEditorTrack].name, drumEditorTrack)}</strong>
-            <span className="drum-editor-dock-hint">Q W E R / A S D F · doble clic en la pista o el clip</span>
+            <span className="drum-editor-dock-hint">{t("Q W E R / A S D F · doble clic en la pista o el clip")}</span>
             <button type="button" className="drum-toolbar-btn" onClick={() => setDrumEditorTrack(null)}>
-              Cerrar
+              {t("Cerrar")}
             </button>
           </div>
           <DrumEditor
@@ -8070,14 +8077,13 @@ function App() {
           }}
         >
           <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-tempo-title">
-            <h2 id="reset-tempo-title">Resetear tempo</h2>
+            <h2 id="reset-tempo-title">{t("Resetear tempo")}</h2>
             <p>
-              Se borra el mapa de beats y las marcas editadas. El metrónomo y la regla vuelven a Tempo fijo
-              en el BPM del proyecto. Se puede deshacer.
+              {t("Se borra el mapa de beats y las marcas editadas. El metrónomo y la regla vuelven a Tempo fijo\n              en el BPM del proyecto. Se puede deshacer.")}
             </p>
             <div className="confirm-actions">
               <button type="button" className="confirm-cancel" onClick={() => setTempoResetConfirm(false)}>
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button
                 type="button"
@@ -8085,7 +8091,7 @@ function App() {
                 data-testid="reset-tempo-confirm"
                 onClick={resetTempoToFixed}
               >
-                Resetear
+                {t("Resetear")}
               </button>
             </div>
           </div>
@@ -8128,7 +8134,7 @@ function App() {
 
       {metroAlignArmed && (
         <div className="metro-align-banner" data-testid="metro-align-banner">
-          Hacé click donde está el 1 · Esc cancela
+          {t("Hacé click donde está el 1 · Esc cancela")}
         </div>
       )}
 
@@ -8144,53 +8150,53 @@ function App() {
       {showHelp && (
         <div className="drive-projects-modal">
           <div className="modal-content help-modal" style={{ maxWidth: '600px' }}>
-            <h2>Atajos de teclado y gestos</h2>
+            <h2>{t("Atajos de teclado y gestos")}</h2>
             <div>
-              <h3>Edición de clips</h3>
+              <h3>{t("Edición de clips")}</h3>
               <ul>
-                <li>• <strong>Click derecho en un clip</strong> - Menú: Cortar, Copiar, Pegar, Dividir aquí, Seleccionar desde aquí hasta el final, Seleccionar este punto en todas las pistas, Duplicar, Eliminar</li>
-                <li>• <strong>Click derecho en una pista vacía</strong> - Pegar aquí (en la posición del cursor, con snap si está activo)</li>
-                <li>• <strong>Click</strong> - Seleccionar clip y mover playhead</li>
-                <li>• <strong>Shift+Click o Cmd/Ctrl+Click</strong> - Añadir o quitar un clip de la selección (cualquier pista)</li>
-                <li>• <strong>Arrastrar en área vacía</strong> - Selección rectangular (varios tracks). También desde la cabecera de pista, el vacío debajo de la última pista, o Alt+arrastrar encima de un clip. Shift añade, Ctrl/Cmd alterna. El loop se dibuja solo en la regla</li>
-                <li>• <strong>Shift/Cmd+click en la cabecera</strong> - Selecciona todos los clips de esa pista. Click derecho → Seleccionar todos los clips de la pista</li>
-                <li>• <strong>Arrastrar clip</strong> - Mueve toda la selección el mismo Δt. Con varios clips solo horizontal (cada uno en su pista). El clip sigue el puntero al píxel (rAF). Snap de cuadrícula solo si Snap está ON. Imán (aparte) encaja bordes. Ninguno pasa de 0:00</li>
-                <li>• <strong>← →</strong> - Empuja la selección (un 16avo). Shift = 1 beat. Click derecho → Mover selección… / Alinear inicios / Eliminar selección</li>
-                <li>• <strong>Alt+Click en clip</strong> - Dividir en el punto clickeado</li>
-                <li>• <strong>Alt+Arrastrar</strong> - Selección rectangular (incluso encima de clips o desde la cabecera). Alt+Click sigue dividiendo. Mantener Alt durante un arrastre normal apaga el Imán</li>
-                <li>• <strong>Cmd/Ctrl+Alt+Arrastrar</strong> - Duplicar clip (después de mover 5px)</li>
-                <li>• <strong>Arrastrar borde izquierdo</strong> - Recortar desde el inicio</li>
-                <li>• <strong>Arrastrar borde derecho</strong> - Recortar desde el final</li>
-                <li>• <strong>Arrastrar archivos de audio</strong> - Soltalos en una pista para colocarlos ahí (con snap si está activo). Entre pistas se inserta una pista nueva. Fuera de una pista se crea una pista nueva al final. Varios archivos: una pista por archivo</li>
-                <li>• <strong>Botón Snap</strong> - Empieza en OFF. Activa/desactiva el ajuste a cuadrícula (se recuerda)</li>
-                <li>• <strong>Botón Imán</strong> - Empieza en OFF. Encaja inicio/final del clip (o de la selección) con otros clips de cualquier pista y con 0, a unos 8 px. Guía vertical al encajar. Se guarda en el archivo del proyecto y en la sesión</li>
-                <li>• <strong>Alinear inicios</strong> - Con varios clips seleccionados, click derecho → deja todos los inicios en el más temprano</li>
-                <li>• <strong>Shift al arrastrar</strong> - Invierte el snap de cuadrícula mientras arrastras (lo enciende si está OFF, lo apaga si está ON)</li>
+                <li>• <strong>{t("Click derecho en un clip")}</strong> {t("- Menú: Cortar, Copiar, Pegar, Dividir aquí, Seleccionar desde aquí hasta el final, Seleccionar este punto en todas las pistas, Duplicar, Eliminar")}</li>
+                <li>• <strong>{t("Click derecho en una pista vacía")}</strong> {t("- Pegar aquí (en la posición del cursor, con snap si está activo)")}</li>
+                <li>• <strong>{t("Click")}</strong> {t("- Seleccionar clip y mover playhead")}</li>
+                <li>• <strong>{t("Shift+Click o Cmd/Ctrl+Click")}</strong> {t("- Añadir o quitar un clip de la selección (cualquier pista)")}</li>
+                <li>• <strong>{t("Arrastrar en área vacía")}</strong> {t("- Selección rectangular (varios tracks). También desde la cabecera de pista, el vacío debajo de la última pista, o Alt+arrastrar encima de un clip. Shift añade, Ctrl/Cmd alterna. El loop se dibuja solo en la regla")}</li>
+                <li>• <strong>{t("Shift/Cmd+click en la cabecera")}</strong> {t("- Selecciona todos los clips de esa pista. Click derecho → Seleccionar todos los clips de la pista")}</li>
+                <li>• <strong>{t("Arrastrar clip")}</strong> {t("- Mueve toda la selección el mismo Δt. Con varios clips solo horizontal (cada uno en su pista). El clip sigue el puntero al píxel (rAF). Snap de cuadrícula solo si Snap está ON. Imán (aparte) encaja bordes. Ninguno pasa de 0:00")}</li>
+                <li>• <strong>← →</strong> {t("- Empuja la selección (un 16avo). Shift = 1 beat. Click derecho → Mover selección… / Alinear inicios / Eliminar selección")}</li>
+                <li>• <strong>{t("Alt+Click en clip")}</strong> {t("- Dividir en el punto clickeado")}</li>
+                <li>• <strong>{t("Alt+Arrastrar")}</strong> {t("- Selección rectangular (incluso encima de clips o desde la cabecera). Alt+Click sigue dividiendo. Mantener Alt durante un arrastre normal apaga el Imán")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+Alt+Arrastrar")}</strong> {t("- Duplicar clip (después de mover 5px)")}</li>
+                <li>• <strong>{t("Arrastrar borde izquierdo")}</strong> {t("- Recortar desde el inicio")}</li>
+                <li>• <strong>{t("Arrastrar borde derecho")}</strong> {t("- Recortar desde el final")}</li>
+                <li>• <strong>{t("Arrastrar archivos de audio")}</strong> {t("- Soltalos en una pista para colocarlos ahí (con snap si está activo). Entre pistas se inserta una pista nueva. Fuera de una pista se crea una pista nueva al final. Varios archivos: una pista por archivo")}</li>
+                <li>• <strong>{t("Botón Snap")}</strong> {t("- Empieza en OFF. Activa/desactiva el ajuste a cuadrícula (se recuerda)")}</li>
+                <li>• <strong>{t("Botón Imán")}</strong> {t("- Empieza en OFF. Encaja inicio/final del clip (o de la selección) con otros clips de cualquier pista y con 0, a unos 8 px. Guía vertical al encajar. Se guarda en el archivo del proyecto y en la sesión")}</li>
+                <li>• <strong>{t("Alinear inicios")}</strong> {t("- Con varios clips seleccionados, click derecho → deja todos los inicios en el más temprano")}</li>
+                <li>• <strong>{t("Shift al arrastrar")}</strong> {t("- Invierte el snap de cuadrícula mientras arrastras (lo enciende si está OFF, lo apaga si está ON)")}</li>
               </ul>
 
-              <h3>Pistas</h3>
+              <h3>{t("Pistas")}</h3>
               <ul>
-                <li>• <strong>Doble clic en el nombre</strong> - Renombrar pista (Enter o clic fuera guarda, Escape cancela)</li>
-                <li>• <strong>Arrastrar el nombre/cabecera</strong> - Reordena las pistas (línea de inserción y las demás se corren). Clips, FX, volumen y mute/solo/Aislar viajan con la pista</li>
-                <li>• <strong>Icono de papelera en la cabecera</strong> - Eliminar la pista entera (pide confirmación si tiene clips)</li>
-                <li>• <strong>Click derecho en la cabecera de pista</strong> - Menú: Renombrar, Insertar pista arriba/abajo, Agregar pista, Eliminar pista. En Metrónomo: Alinear metrónomo y Ajustes (compás, subdivisión, sonido)</li>
-                <li>• <strong>BPM</strong> - Decimales (117.5), botones ×2 / ÷2 y TAP. El detector usa una ventana larga y elige el pulso más rápido entre octavas (152 no se pliega a 76)</li>
-                <li>• <strong>+ Agregar pista</strong> - Añade una pista vacía al final (Pista 9, 10, …). También en una pista vacía o zona vacía (clic derecho). Se puede deshacer</li>
-                <li>• <strong>Batería (pads)</strong> - Pista de sampler estilo Redrum: 8 pads (hasta 16), kit inicial sintetizado y secuenciador de 16/32 pasos. Click derecho → Insertar pista de pads. Doble clic abre el editor</li>
-                <li>• <strong>Soltar audio entre pistas</strong> - Inserta una pista nueva en ese lugar. Sobre una pista la coloca ahí</li>
-                <li>• <strong>Cmd/Ctrl+Z</strong> - Deshacer (incluye nombre, clips, volumen, mute y solo)</li>
-                <li>• <strong>Volumen de pista</strong> - El audio cambia al arrastrar; el valor se guarda al soltar</li>
-                <li>• <strong>Zoom horizontal</strong> - De ver el tema entero (0.05×) a detalle muy fino (512×). El slider es logarítmico. Ctrl/Cmd+rueda zoom anclado al cursor</li>
-                <li>• <strong>Zoom vertical</strong> - La forma de onda queda centrada en el clip a cualquier altura (también al mínimo del slider)</li>
-                <li>• <strong>Círculo en la cabecera</strong> - Armar la pista para grabar (rojo = armada). Solo una a la vez</li>
-                <li>• <strong>P (Practicar encima)</strong> - Silencia ese stem y deja el resto sonando para tocar o cantar encima. El botón del transporte usa la pista seleccionada</li>
-                <li>• <strong>Aislar</strong> - Oís SOLO esa pista (para tocar encima). Mute (M) silencia una. Solo (S) puede dejar varias. Una pista nueva se oye también. Pulsá de nuevo para oír todas. {METRONOME_AISLAR_RULE}</li>
-                <li>• <strong>Metrónomo</strong> - Pista fija «Metrónomo» (arriba, no se borra ni se renombra). Sale muteada. El botón del toolbar es el mismo Mute. Al cargar el primer audio se detecta un mapa de beats. En Ajustes: Tempo fijo (BPM constante) o Seguir la canción (clics en el mapa, sigue el drift). Arrastrá las marcas en la pista; click derecho: Agregar marca de tempo, Borrar marca, Poner el 1 acá, Reanalizar tempo, Resetear tempo. Resetear borra el mapa y vuelve a Tempo fijo (se puede deshacer). La regla de compases sigue el mapa en modo Seguir. Vel escala los tiempos. Se exporta solo si está destildado, más la opción de entrada de 2 compases</li>
-                <li>• <strong>Botón FX</strong> - Abre el rack de efectos de esa pista (EQ, compresor, filtro, delay, reverb y pan). Cada módulo tiene knobs y bypass On/Off</li>
-                <li>• <strong>Botón A (curva)</strong> - Muestra la pista de automatización. Elegí el parámetro (volumen, pan o un knob de efecto) y dibujá la curva</li>
+                <li>• <strong>{t("Doble clic en el nombre")}</strong> {t("- Renombrar pista (Enter o clic fuera guarda, Escape cancela)")}</li>
+                <li>• <strong>{t("Arrastrar el nombre/cabecera")}</strong> {t("- Reordena las pistas (línea de inserción y las demás se corren). Clips, FX, volumen y mute/solo/Aislar viajan con la pista")}</li>
+                <li>• <strong>{t("Icono de papelera en la cabecera")}</strong> {t("- Eliminar la pista entera (pide confirmación si tiene clips)")}</li>
+                <li>• <strong>{t("Click derecho en la cabecera de pista")}</strong> {t("- Menú: Renombrar, Insertar pista arriba/abajo, Agregar pista, Eliminar pista. En Metrónomo: Alinear metrónomo y Ajustes (compás, subdivisión, sonido)")}</li>
+                <li>• <strong>{t("BPM")}</strong> {t("- Decimales (117.5), botones ×2 / ÷2 y TAP. El detector usa una ventana larga y elige el pulso más rápido entre octavas (152 no se pliega a 76)")}</li>
+                <li>• <strong>{t("+ Agregar pista")}</strong> {t("- Añade una pista vacía al final (Pista 9, 10, …). También en una pista vacía o zona vacía (clic derecho). Se puede deshacer")}</li>
+                <li>• <strong>{t("Batería (pads)")}</strong> {t("- Pista de sampler estilo Redrum: 8 pads (hasta 16), kit inicial sintetizado y secuenciador de 16/32 pasos. Click derecho → Insertar pista de pads. Doble clic abre el editor")}</li>
+                <li>• <strong>{t("Soltar audio entre pistas")}</strong> {t("- Inserta una pista nueva en ese lugar. Sobre una pista la coloca ahí")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+Z")}</strong> {t("- Deshacer (incluye nombre, clips, volumen, mute y solo)")}</li>
+                <li>• <strong>{t("Volumen de pista")}</strong> {t("- El audio cambia al arrastrar; el valor se guarda al soltar")}</li>
+                <li>• <strong>{t("Zoom horizontal")}</strong> {t("- De ver el tema entero (0.05×) a detalle muy fino (512×). El slider es logarítmico. Ctrl/Cmd+rueda zoom anclado al cursor")}</li>
+                <li>• <strong>{t("Zoom vertical")}</strong> {t("- La forma de onda queda centrada en el clip a cualquier altura (también al mínimo del slider)")}</li>
+                <li>• <strong>{t("Círculo en la cabecera")}</strong> {t("- Armar la pista para grabar (rojo = armada). Solo una a la vez")}</li>
+                <li>• <strong>{t("P (Practicar encima)")}</strong> {t("- Silencia ese stem y deja el resto sonando para tocar o cantar encima. El botón del transporte usa la pista seleccionada")}</li>
+                <li>• <strong>{t("Aislar")}</strong> {t("- Oís SOLO esa pista (para tocar encima). Mute (M) silencia una. Solo (S) puede dejar varias. Una pista nueva se oye también. Pulsá de nuevo para oír todas.")} {METRONOME_AISLAR_RULE}</li>
+                <li>• <strong>{t("Metrónomo")}</strong> {t("- Pista fija «Metrónomo» (arriba, no se borra ni se renombra). Sale muteada. El botón del toolbar es el mismo Mute. Al cargar el primer audio se detecta un mapa de beats. En Ajustes: Tempo fijo (BPM constante) o Seguir la canción (clics en el mapa, sigue el drift). Arrastrá las marcas en la pista; click derecho: Agregar marca de tempo, Borrar marca, Poner el 1 acá, Reanalizar tempo, Resetear tempo. Resetear borra el mapa y vuelve a Tempo fijo (se puede deshacer). La regla de compases sigue el mapa en modo Seguir. Vel escala los tiempos. Se exporta solo si está destildado, más la opción de entrada de 2 compases")}</li>
+                <li>• <strong>{t("Botón FX")}</strong> {t("- Abre el rack de efectos de esa pista (EQ, compresor, filtro, delay, reverb y pan). Cada módulo tiene knobs y bypass On/Off")}</li>
+                <li>• <strong>{t("Botón A (curva)")}</strong> {t("- Muestra la pista de automatización. Elegí el parámetro (volumen, pan o un knob de efecto) y dibujá la curva")}</li>
               </ul>
 
-              <h3>Tono, tempo y práctica</h3>
+              <h3>{t("Tono, tempo y práctica")}</h3>
               <ul>
                 <li>• <strong>Tono</strong> - −/+ de a 0.5 semitonos (±12). Doble clic en el valor vuelve a 0. Se puede escribir un número exacto</li>
                 <li>• <strong>Velocidad</strong> - −/+ de a 0.05x (0.50x–1.50x). Doble clic vuelve a 1.00x. El BPM que suena queda al lado del BPM del proyecto (p. ej. 120 → 90)</li>
@@ -8198,65 +8204,65 @@ function App() {
                 <li>• <strong>Detectar acordes</strong> - Analiza la mezcla o una pista con chroma espectral en el navegador. Muestra la tonalidad (p. ej. La menor) y etiquetas sobre la regla. Pulsá de nuevo para recalcular. Es una heurística: en temas densos o con distorsión puede equivocarse</li>
               </ul>
 
-              <h3>Efectos y automatización</h3>
+              <h3>{t("Efectos y automatización")}</h3>
               <ul>
-                <li>• <strong>Knobs</strong> - Arrastrá verticalmente para cambiar; Shift = ajuste fino. El audio se actualiza al instante</li>
-                <li>• <strong>Bypass</strong> - On/Off por efecto. EQ parte activo (plano); compresor, filtro, delay y reverb empiezan en bypass</li>
-                <li>• <strong>Filtro LP/HP</strong> - Tipo pasa-bajos o pasa-altos, con corte y resonancia</li>
-                <li>• <strong>Click en la curva</strong> - Añade un punto. Arrastrar mueve. Doble clic o Delete/Backspace borra el punto seleccionado</li>
-                <li>• <strong>Durante el play</strong> - La curva maneja el parámetro de Tone.js en tiempo real (interpolación lineal) sin re-renderizar la app cada frame</li>
-                <li>• <strong>Guardar</strong> - FX, pan y automatización van en project.json y en el autosave de IndexedDB. Un gesto de puntos = un deshacer</li>
+                <li>• <strong>{t("Knobs")}</strong> {t("- Arrastrá verticalmente para cambiar; Shift = ajuste fino. El audio se actualiza al instante")}</li>
+                <li>• <strong>{t("Bypass")}</strong> {t("- On/Off por efecto. EQ parte activo (plano); compresor, filtro, delay y reverb empiezan en bypass")}</li>
+                <li>• <strong>{t("Filtro LP/HP")}</strong> {t("- Tipo pasa-bajos o pasa-altos, con corte y resonancia")}</li>
+                <li>• <strong>{t("Click en la curva")}</strong> {t("- Añade un punto. Arrastrar mueve. Doble clic o Delete/Backspace borra el punto seleccionado")}</li>
+                <li>• <strong>{t("Durante el play")}</strong> {t("- La curva maneja el parámetro de Tone.js en tiempo real (interpolación lineal) sin re-renderizar la app cada frame")}</li>
+                <li>• <strong>{t("Guardar")}</strong> {t("- FX, pan y automatización van en project.json y en el autosave de IndexedDB. Un gesto de puntos = un deshacer")}</li>
               </ul>
 
-              <h3>Grabación</h3>
+              <h3>{t("Grabación")}</h3>
               <ul>
-                <li>• <strong>Grabar</strong> (punto rojo) - Graba el micrófono desde el playhead. Si no hay pista armada, usa la seleccionada o crea «Grabación N»</li>
-                <li>• <strong>Overdub</strong> - Mientras grabás se reproducen las demás pistas. La cuenta del metrónomo se respeta si está activa y el playhead está en esos compases</li>
-                <li>• <strong>Grabar de nuevo, Stop o Espacio</strong> - Termina la toma y deja un clip (un deshacer la saca)</li>
-                <li>• <strong>Entrada de audio</strong> - Si hay más de un micrófono, elige cuál usar (se recuerda)</li>
-                <li>• <strong>Calibrar latencia</strong> - Reloj junto a Grabar. Mide el viaje altavoz→micrófono y guarda el offset por dispositivo. El ajuste −/+ en ms se suma a todas las tomas nuevas</li>
-                <li>• <strong>Ajustar latencia...</strong> - Click derecho en un clip ya grabado para desplazarlo en milisegundos</li>
+                <li>• <strong>{t("Grabar")}</strong> {t("(punto rojo) - Graba el micrófono desde el playhead. Si no hay pista armada, usa la seleccionada o crea «Grabación N»")}</li>
+                <li>• <strong>{t("Overdub")}</strong> {t("- Mientras grabás se reproducen las demás pistas. La cuenta del metrónomo se respeta si está activa y el playhead está en esos compases")}</li>
+                <li>• <strong>{t("Grabar de nuevo, Stop o Espacio")}</strong> {t("- Termina la toma y deja un clip (un deshacer la saca)")}</li>
+                <li>• <strong>{t("Entrada de audio")}</strong> {t("- Si hay más de un micrófono, elige cuál usar (se recuerda)")}</li>
+                <li>• <strong>{t("Calibrar latencia")}</strong> {t("- Reloj junto a Grabar. Mide el viaje altavoz→micrófono y guarda el offset por dispositivo. El ajuste −/+ en ms se suma a todas las tomas nuevas")}</li>
+                <li>• <strong>{t("Ajustar latencia...")}</strong> {t("- Click derecho en un clip ya grabado para desplazarlo en milisegundos")}</li>
               </ul>
               
-              <h3>Teclado</h3>
+              <h3>{t("Teclado")}</h3>
               <ul>
-                <li>• <strong>Cmd/Ctrl+S</strong> - Guardar proyecto localmente. El permiso del archivo se pide en el mismo gesto, antes de armar el zip</li>
-                <li>• <strong>Shift+Cmd/Ctrl+S</strong> o <strong>Guardar como…</strong> - Nueva ubicación (showSaveFilePicker)</li>
-                <li>• <strong>S</strong> o <strong>Cmd/Ctrl+E</strong> - Dividir clip en playhead (S dispara el pad si el editor de batería está abierto)</li>
-                <li>• <strong>Q W E R / A S D F</strong> - Dispara los pads de la pista de batería seleccionada o con el editor abierto</li>
-                <li>• <strong>Cmd/Ctrl+X</strong> - Cortar clips seleccionados</li>
-                <li>• <strong>Cmd/Ctrl+C</strong> - Copiar clips seleccionados</li>
-                <li>• <strong>Cmd/Ctrl+V</strong> - Pegar selección en playhead (posiciones relativas)</li>
-                <li>• <strong>Cmd/Ctrl+D</strong> - Duplicar clips seleccionados</li>
-                <li>• <strong>Delete/Backspace</strong> - Eliminar clips seleccionados, o el punto de automatización seleccionado</li>
-                <li>• <strong>Escape</strong> - Cerrar menú o limpiar selección</li>
-                <li>• <strong>Cmd/Ctrl+A</strong> - Seleccionar todos los clips (el metrónomo no tiene clips)</li>
-                <li>• <strong>Esc o click en vacío</strong> - Quita la selección</li>
-                <li>• <strong>Cmd/Ctrl+Z</strong> - Deshacer</li>
-                <li>• <strong>Cmd/Ctrl+Shift+Z</strong> o <strong>Cmd/Ctrl+Y</strong> - Rehacer</li>
-                <li>• <strong>Espacio</strong> - Play/Pausa solo con esta pestaña enfocada. No hace nada si estás escribiendo en un campo</li>
+                <li>• <strong>{t("Cmd/Ctrl+S")}</strong> {t("- Guardar proyecto localmente. El permiso del archivo se pide en el mismo gesto, antes de armar el zip")}</li>
+                <li>• <strong>{t("Shift+Cmd/Ctrl+S")}</strong> {t("o")} <strong>{t("Guardar como…")}</strong> {t("- Nueva ubicación (showSaveFilePicker)")}</li>
+                <li>• <strong>{t("S")}</strong> {t("o")} <strong>{t("Cmd/Ctrl+E")}</strong> {t("- Dividir clip en playhead (S dispara el pad si el editor de batería está abierto)")}</li>
+                <li>• <strong>{t("Q W E R / A S D F")}</strong> {t("- Dispara los pads de la pista de batería seleccionada o con el editor abierto")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+X")}</strong> {t("- Cortar clips seleccionados")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+C")}</strong> {t("- Copiar clips seleccionados")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+V")}</strong> {t("- Pegar selección en playhead (posiciones relativas)")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+D")}</strong> {t("- Duplicar clips seleccionados")}</li>
+                <li>• <strong>{t("Delete/Backspace")}</strong> {t("- Eliminar clips seleccionados, o el punto de automatización seleccionado")}</li>
+                <li>• <strong>{t("Escape")}</strong> {t("- Cerrar menú o limpiar selección")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+A")}</strong> {t("- Seleccionar todos los clips (el metrónomo no tiene clips)")}</li>
+                <li>• <strong>{t("Esc o click en vacío")}</strong> {t("- Quita la selección")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+Z")}</strong> {t("- Deshacer")}</li>
+                <li>• <strong>{t("Cmd/Ctrl+Shift+Z")}</strong> {t("o")} <strong>{t("Cmd/Ctrl+Y")}</strong> {t("- Rehacer")}</li>
+                <li>• <strong>{t("Espacio")}</strong> {t("- Play/Pausa solo con esta pestaña enfocada. No hace nada si estás escribiendo en un campo")}</li>
               </ul>
               
-              <h3>Guardar y Abrir</h3>
+              <h3>{t("Guardar y Abrir")}</h3>
               <ul>
-                <li>• <strong>Nombre del proyecto</strong> - Arriba, al centro. • si hay cambios sin guardar. Doble clic para renombrar (Enter guarda, Esc cancela). El nombre va a Mis proyectos y al archivo .mibemolsi sugerido</li>
-                <li>• <strong>Guardar</strong> - Guardar proyecto en tu computadora (primera vez elige ubicación, después sobrescribe). El audio nunca sube a la nube</li>
-                <li>• <strong>Guardar como…</strong> - Elige otro archivo .mibemolsi. También se pueden abrir proyectos .musicalia anteriores. Si Chrome pide permiso de nuevo, usá Permitir y guardar; el proyecto no se pierde (sigue en la sesión)</li>
-                <li>• <strong>Abrir</strong> - Abrir proyecto .mibemolsi o .musicalia desde tu computadora</li>
-                <li>• <strong>Mis proyectos</strong> - Con sesión iniciada, cada Guardar anota nombre, archivo, fecha, BPM y pistas. Solo metadatos: el archivo del proyecto sigue en tu disco. Si el archivo está en esta computadora se abre directo; si no, elegís el proyecto. Quitar borra la entrada, no el archivo</li>
-                <li>• <strong>Ubicación</strong> - El navegador no revela la ruta completa. Podés anotar carpeta o disco a mano</li>
-                <li>• Los proyectos incluyen todo el audio y stems sin rehacer separación</li>
+                <li>• <strong>{t("Nombre del proyecto")}</strong> {t("- Arriba, al centro. • si hay cambios sin guardar. Doble clic para renombrar (Enter guarda, Esc cancela). El nombre va a Mis proyectos y al archivo .mibemolsi sugerido")}</li>
+                <li>• <strong>{t("Guardar")}</strong> {t("- Guardar proyecto en tu computadora (primera vez elige ubicación, después sobrescribe). El audio nunca sube a la nube")}</li>
+                <li>• <strong>{t("Guardar como…")}</strong> {t("- Elige otro archivo .mibemolsi. También se pueden abrir proyectos .musicalia anteriores. Si Chrome pide permiso de nuevo, usá Permitir y guardar; el proyecto no se pierde (sigue en la sesión)")}</li>
+                <li>• <strong>{t("Abrir")}</strong> {t("- Abrir proyecto .mibemolsi o .musicalia desde tu computadora")}</li>
+                <li>• <strong>{t("Mis proyectos")}</strong> {t("- Con sesión iniciada, cada Guardar anota nombre, archivo, fecha, BPM y pistas. Solo metadatos: el archivo del proyecto sigue en tu disco. Si el archivo está en esta computadora se abre directo; si no, elegís el proyecto. Quitar borra la entrada, no el archivo")}</li>
+                <li>• <strong>{t("Ubicación")}</strong> {t("- El navegador no revela la ruta completa. Podés anotar carpeta o disco a mano")}</li>
+                <li>{t("• Los proyectos incluyen todo el audio y stems sin rehacer separación")}</li>
               </ul>
               
-              <h3>Transporte</h3>
+              <h3>{t("Transporte")}</h3>
               <ul>
-                <li>• <strong>Espacio</strong> - Play/Pausa solo mientras Musicalia está enfocada y visible (no desde otras pestañas, apps ni teclas de media). El playhead se queda donde paró; la próxima vez sigue desde ahí o desde donde hiciste click. Si hay una grabación en curso, la detiene. No desplaza la página ni activa el botón enfocado</li>
-                <li>• <strong>Click en timeline, regla o clip</strong> - Mover playhead (siempre visible, también en pausa)</li>
-                <li>• <strong>Arrastrar en la regla</strong> - Marcar región de loop (no mueve clips). Los bordes se redimensionan; el recuadro se desplaza entero</li>
-                <li>• <strong>Click derecho en un clip → Loop a este clip</strong> - Ajusta el loop a ese clip</li>
+                <li>• <strong>{t("Espacio")}</strong> {t("- Play/Pausa solo mientras Musicalia está enfocada y visible (no desde otras pestañas, apps ni teclas de media). El playhead se queda donde paró; la próxima vez sigue desde ahí o desde donde hiciste click. Si hay una grabación en curso, la detiene. No desplaza la página ni activa el botón enfocado")}</li>
+                <li>• <strong>{t("Click en timeline, regla o clip")}</strong> {t("- Mover playhead (siempre visible, también en pausa)")}</li>
+                <li>• <strong>{t("Arrastrar en la regla")}</strong> {t("- Marcar región de loop (no mueve clips). Los bordes se redimensionan; el recuadro se desplaza entero")}</li>
+                <li>• <strong>{t("Click derecho en un clip → Loop a este clip")}</strong> {t("- Ajusta el loop a ese clip")}</li>
               </ul>
             </div>
-            <button className="btn btn-primary" onClick={() => setShowHelp(false)}>Cerrar</button>
+            <button className="btn btn-primary" onClick={() => setShowHelp(false)}>{t("Cerrar")}</button>
           </div>
         </div>
       )}
