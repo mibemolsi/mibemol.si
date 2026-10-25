@@ -827,6 +827,8 @@ const LanguageContext = createContext<LanguageContextValue>({ language: 'es', se
 
 function readLanguage(): Language {
   try {
+    const fromUrl = new URLSearchParams(window.location.search).get('lang')
+    if (fromUrl === 'en' || fromUrl === 'pt' || fromUrl === 'es') return fromUrl
     const value = localStorage.getItem(LANGUAGE_STORAGE_KEY)
     if (value === 'en' || value === 'pt' || value === 'es') return value
   } catch { /* storage may be unavailable */ }
@@ -844,6 +846,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     activeLanguage = next
     setLanguageState(next)
     try { localStorage.setItem(LANGUAGE_STORAGE_KEY, next) } catch { /* storage may be unavailable */ }
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('lang')) {
+      url.searchParams.delete('lang')
+      window.history.replaceState(window.history.state, '', url)
+    }
   }
   useEffect(() => { document.documentElement.lang = language }, [language])
   const value = useMemo<LanguageContextValue>(() => ({
