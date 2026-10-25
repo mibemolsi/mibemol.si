@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { NumberStepper } from './NumberStepper'
 import {
   MANUAL_LATENCY_MAX_MS,
@@ -31,17 +32,17 @@ export function RecordLatencyPanel({
   onClose
 }: RecordLatencyPanelProps) {
   return (
-    <div className="record-latency-panel" data-testid="record-latency-panel" role="dialog" aria-label="Latencia de grabación">
+    <div className="record-latency-panel" data-testid="record-latency-panel" role="dialog" aria-label={t("Latencia de grabación")}>
       <div className="record-latency-row">
-        <span>Auto (E/S)</span>
-        <strong>{Math.round(autoMs)} ms</strong>
+        <span>{t("Auto (E/S)")}</span>
+        <strong>{Math.round(autoMs)} {t("ms")}</strong>
       </div>
       <div className="record-latency-row">
-        <span>Calibrado</span>
+        <span>{t("Calibrado")}</span>
         <strong>{calibratedMs == null ? '—' : `${Math.round(calibratedMs)} ms`}</strong>
       </div>
       <div className="record-latency-row">
-        <span>Ajuste</span>
+        <span>{t("Ajuste")}</span>
         <NumberStepper
           value={manualMs}
           min={MANUAL_LATENCY_MIN_MS}
@@ -57,11 +58,11 @@ export function RecordLatencyPanel({
         />
       </div>
       <div className="record-latency-row">
-        <span>Aplicado</span>
-        <strong data-testid="record-latency-applied">{Math.round(appliedMs)} ms</strong>
+        <span>{t("Aplicado")}</span>
+        <strong data-testid="record-latency-applied">{Math.round(appliedMs)} {t("ms")}</strong>
       </div>
       <p className="record-latency-hint">
-        Los clics salen por los altavoces y vuelven por el micrófono. El ajuste se guarda por dispositivo.
+        {t("Los clics salen por los altavoces y vuelven por el micrófono. El ajuste se guarda por dispositivo.")}
       </p>
       <div className="record-latency-actions">
         <button
@@ -74,7 +75,7 @@ export function RecordLatencyPanel({
           {calibrating ? 'Calibrando…' : 'Calibrar latencia'}
         </button>
         <button type="button" className="modal-button modal-button-secondary" onClick={onClose}>
-          Cerrar
+          {t("Cerrar")}
         </button>
       </div>
     </div>
@@ -92,12 +93,12 @@ export function ClipLatencyDialog({ valueMs, onChangeMs, onApply, onCancel }: Cl
   return (
     <div className="confirm-modal" data-testid="clip-latency-dialog">
       <div className="modal-content" style={{ maxWidth: 360 }}>
-        <h2 className="modal-title">Ajustar latencia</h2>
+        <h2 className="modal-title">{t("Ajustar latencia")}</h2>
         <p className="modal-description">
-          Un valor positivo adelanta el clip (compensa una grabación tarde). Negativo lo retrasa.
+          {t("Un valor positivo adelanta el clip (compensa una grabación tarde). Negativo lo retrasa.")}
         </p>
         <div className="record-latency-row">
-          <span>Desplazamiento</span>
+          <span>{t("Desplazamiento")}</span>
           <NumberStepper
             value={valueMs}
             min={MANUAL_LATENCY_MIN_MS}
@@ -114,10 +115,10 @@ export function ClipLatencyDialog({ valueMs, onChangeMs, onApply, onCancel }: Cl
         </div>
         <div className="modal-buttons">
           <button type="button" className="modal-button modal-button-primary" onClick={onApply}>
-            Aplicar
+            {t("Aplicar")}
           </button>
           <button type="button" className="modal-button modal-button-secondary" onClick={onCancel}>
-            Cancelar
+            {t("Cancelar")}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   STEPPER_HOLD_DELAY_MS,
@@ -114,7 +115,7 @@ export function NumberStepper({
         type="button"
         className="number-stepper-btn"
         data-testid={`${testId}-dec`}
-        aria-label="Disminuir"
+        aria-label={t("Disminuir")}
         disabled={atMin}
         tabIndex={-1}
         onPointerDown={(e) => {
@@ -173,7 +174,7 @@ export function NumberStepper({
         type="button"
         className="number-stepper-btn"
         data-testid={`${testId}-inc`}
-        aria-label="Aumentar"
+        aria-label={t("Aumentar")}
         disabled={atMax}
         tabIndex={-1}
         onPointerDown={(e) => {

@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { memo } from 'react'
 import { ParamKnob } from './ParamKnob'
 import { FX_RACK_HEIGHT, type FilterType, type TrackFxState } from './trackFx'
@@ -49,7 +50,7 @@ export const FxRack = memo(function FxRack({
     <div className="fx-rack" style={{ height: `${FX_RACK_HEIGHT}px` }} data-testid="fx-rack">
       <section className="fx-module">
         <header className="fx-module-head">
-          <span>Canal</span>
+          <span>{t("Canal")}</span>
         </header>
         <div className="fx-module-knobs">
           <ParamKnob label="Pan" value={pan} min={-1} max={1} step={0.01} onLive={onPanLive} onCommit={onPanCommit} />
@@ -57,7 +58,7 @@ export const FxRack = memo(function FxRack({
       </section>
       <section className={`fx-module${fx.eq.bypass ? ' bypassed' : ''}`}>
         <header className="fx-module-head">
-          <span>EQ</span>
+          <span>{t("EQ")}</span>
           <BypassToggle active={fx.eq.bypass} onClick={() => onBypass('eq')} label="EQ" />
         </header>
         <div className="fx-module-knobs">
@@ -68,7 +69,7 @@ export const FxRack = memo(function FxRack({
       </section>
       <section className={`fx-module${fx.compressor.bypass ? ' bypassed' : ''}`}>
         <header className="fx-module-head">
-          <span>Comp</span>
+          <span>{t("Comp")}</span>
           <BypassToggle active={fx.compressor.bypass} onClick={() => onBypass('compressor')} label="Compresor" />
         </header>
         <div className="fx-module-knobs">
@@ -81,10 +82,10 @@ export const FxRack = memo(function FxRack({
       </section>
       <section className={`fx-module${fx.filter.bypass ? ' bypassed' : ''}`}>
         <header className="fx-module-head">
-          <span>Filtro</span>
+          <span>{t("Filtro")}</span>
           <div className="fx-filter-types">
-            <button type="button" className={`fx-type-btn${fx.filter.type === 'lowpass' ? ' active' : ''}`} onClick={() => onFilterType('lowpass')} disabled={fx.filter.bypass}>LP</button>
-            <button type="button" className={`fx-type-btn${fx.filter.type === 'highpass' ? ' active' : ''}`} onClick={() => onFilterType('highpass')} disabled={fx.filter.bypass}>HP</button>
+            <button type="button" className={`fx-type-btn${fx.filter.type === 'lowpass' ? ' active' : ''}`} onClick={() => onFilterType('lowpass')} disabled={fx.filter.bypass}>{t("LP")}</button>
+            <button type="button" className={`fx-type-btn${fx.filter.type === 'highpass' ? ' active' : ''}`} onClick={() => onFilterType('highpass')} disabled={fx.filter.bypass}>{t("HP")}</button>
           </div>
           <BypassToggle active={fx.filter.bypass} onClick={() => onBypass('filter')} label="Filtro" />
         </header>
@@ -95,7 +96,7 @@ export const FxRack = memo(function FxRack({
       </section>
       <section className={`fx-module${fx.delay.bypass ? ' bypassed' : ''}`}>
         <header className="fx-module-head">
-          <span>Delay</span>
+          <span>{t("Delay")}</span>
           <BypassToggle active={fx.delay.bypass} onClick={() => onBypass('delay')} label="Delay" />
         </header>
         <div className="fx-module-knobs">
@@ -106,7 +107,7 @@ export const FxRack = memo(function FxRack({
       </section>
       <section className={`fx-module${fx.reverb.bypass ? ' bypassed' : ''}`}>
         <header className="fx-module-head">
-          <span>Reverb</span>
+          <span>{t("Reverb")}</span>
           <BypassToggle active={fx.reverb.bypass} onClick={() => onBypass('reverb')} label="Reverb" />
         </header>
         <div className="fx-module-knobs">

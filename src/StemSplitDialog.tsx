@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { useState } from 'react'
 import './StemSplitDialog.css'
 import {
@@ -21,14 +22,13 @@ export function StemSplitDialog({ onConfirm, onCancel }: StemSplitDialogProps) {
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 className="modal-title">¿Este audio tiene varios instrumentos?</h2>
+        <h2 className="modal-title">{t("¿Este audio tiene varios instrumentos?")}</h2>
         <p className="modal-description">
-          Se puede separar el audio en pistas individuales con inteligencia artificial
-          en tu navegador. El audio no sale de tu equipo.
+          {t("Se puede separar el audio en pistas individuales con inteligencia artificial\n          en tu navegador. El audio no sale de tu equipo.")}
         </p>
 
         <label className="quality-label" htmlFor="stem-quality">
-          Calidad de separación
+          {t("Calidad de separación")}
         </label>
         <select
           id="stem-quality"
@@ -47,26 +47,24 @@ export function StemSplitDialog({ onConfirm, onCancel }: StemSplitDialogProps) {
         <p className="quality-detail">{selected.blurb}</p>
 
         <p className="modal-note">
-          <strong>Básica / Rápida</strong> usa Spleeter (4 pistas, ~80 MB, más rápido).
-          {' '}<strong>Mejor calidad</strong> usa HT-Demucs 6 pistas (~136 MB): Voz, Batería, Bajo, Guitarra, Piano y Otros.
-          {' '}<strong>Guitarra agrupa todas las guitarras</strong> (HT-Demucs 6s no las separa).
-          Las pistas casi silenciosas se omiten. La primera vez se descarga el modelo.
+          <strong>{t("Básica / Rápida")}</strong> {t("usa Spleeter (4 pistas, ~80 MB, más rápido).")}
+          {' '}<strong>{t("Mejor calidad")}</strong> {t("usa HT-Demucs 6 pistas (~136 MB): Voz, Batería, Bajo, Guitarra, Piano y Otros.")}
+          {' '}<strong>{t("Guitarra agrupa todas las guitarras")}</strong> {t("(HT-Demucs 6s no las separa).\n          Las pistas casi silenciosas se omiten. La primera vez se descarga el modelo.")}
           <br /><br />
-          <strong>Requisitos:</strong> navegador moderno y varios GB de RAM.
-          HT-Demucs rinde mejor con WebGPU (Chrome/Edge). En móviles puede fallar.
+          <strong>{t("Requisitos:")}</strong> {t("navegador moderno y varios GB de RAM.\n          HT-Demucs rinde mejor con WebGPU (Chrome/Edge). En móviles puede fallar.")}
         </p>
         <div className="modal-buttons">
           <button
             className="modal-button modal-button-primary"
             onClick={() => onConfirm(quality)}
           >
-            Sí, separar en pistas
+            {t("Sí, separar en pistas")}
           </button>
           <button
             className="modal-button modal-button-secondary"
             onClick={onCancel}
           >
-            No, una sola pista
+            {t("No, una sola pista")}
           </button>
         </div>
       </div>
@@ -96,7 +94,7 @@ export function StemSplitProgress({
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 className="modal-title">Separando stems…</h2>
+        <h2 className="modal-title">{t("Separando stems…")}</h2>
         <p className="progress-stage">{stageLabel}</p>
         <div className="progress-container">
           <div className="progress-bar">
@@ -114,7 +112,7 @@ export function StemSplitProgress({
           {showEta ? ` · Resta aprox. ${formatElapsed(etaSeconds)}` : ''}
         </p>
         <p className="modal-description">
-          Este proceso puede tardar varios minutos. No cierres esta ventana.
+          {t("Este proceso puede tardar varios minutos. No cierres esta ventana.")}
         </p>
         {onCancel && (
           <div className="modal-buttons">
@@ -122,7 +120,7 @@ export function StemSplitProgress({
               className="modal-button modal-button-secondary"
               onClick={onCancel}
             >
-              Cancelar
+              {t("Cancelar")}
             </button>
           </div>
         )}
@@ -141,17 +139,17 @@ export function StemFallbackDialog({ message, onRetryBasic, onSingleTrack }: Ste
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 className="modal-title">No se pudo usar Mejor calidad</h2>
+        <h2 className="modal-title">{t("No se pudo usar Mejor calidad")}</h2>
         <p className="modal-description">{message}</p>
         <p className="modal-note">
-          Puedes reintentar con <strong>Básica / Rápida</strong> (Spleeter) o cargar el audio como una sola pista.
+          {t("Puedes reintentar con")} <strong>{t("Básica / Rápida")}</strong> {t("(Spleeter) o cargar el audio como una sola pista.")}
         </p>
         <div className="modal-buttons">
           <button className="modal-button modal-button-primary" onClick={onRetryBasic}>
-            Reintentar con Básica / Rápida
+            {t("Reintentar con Básica / Rápida")}
           </button>
           <button className="modal-button modal-button-secondary" onClick={onSingleTrack}>
-            Cargar como pista única
+            {t("Cargar como pista única")}
           </button>
         </div>
       </div>

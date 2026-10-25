@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { memo, useRef } from 'react'
 import { LiveParamSlider } from './LiveParamSlider'
 import { resolveTrackName } from './clipSelection'
@@ -117,7 +118,7 @@ export const TrackHeader = memo(function TrackHeader({
             className="track-name-input"
             value={renameDraft}
             autoFocus
-            aria-label="Nombre de pista"
+            aria-label={t("Nombre de pista")}
             onChange={(e) => onRenameDraftChange(e.target.value)}
             onFocus={(e) => e.currentTarget.select()}
             onKeyDown={(e) => {
@@ -163,8 +164,8 @@ export const TrackHeader = memo(function TrackHeader({
               e.stopPropagation()
               onOpenMetronomeSettings?.(trackIndex)
             }}
-            title="Ajustes del metrónomo"
-            aria-label="Ajustes del metrónomo"
+            title={t("Ajustes del metrónomo")}
+            aria-label={t("Ajustes del metrónomo")}
             aria-pressed={metroSettingsOpen}
           >
             <IconSettings size={13} />
@@ -176,11 +177,11 @@ export const TrackHeader = memo(function TrackHeader({
           data-testid={`practice-${trackIndex}`}
           onClick={() => { if (!isMetronome) onPractice(trackIndex) }}
           title={isMetronome ? 'El metrónomo no se practica' : 'Practicar encima: silencia ESTA pista y deja el resto sonando, para tocar o cantar'}
-          aria-label="Practicar encima"
+          aria-label={t("Practicar encima")}
           aria-pressed={practiceActive}
           disabled={isMetronome}
         >
-          P
+          {t("P")}
         </button>
         <button
           type="button"
@@ -188,17 +189,17 @@ export const TrackHeader = memo(function TrackHeader({
           data-testid={`aislar-${trackIndex}`}
           onClick={() => { if (!isMetronome) onAislar(trackIndex) }}
           title={isMetronome ? 'Aislar no se aplica al metrónomo; Mute (M) lo apaga. Aislar otra pista no lo silencia si está destildado.' : AISLAR_BUTTON_TITLE}
-          aria-label="Aislar: oír solo esta pista"
+          aria-label={t("Aislar: oír solo esta pista")}
           aria-pressed={isolated}
           disabled={isMetronome}
         >
-          Aislar
+          {t("Aislar")}
         </button>
         <button
           type="button"
           className="control-button track-delete-button header-extra"
           title={isMetronome ? 'El metrónomo no se puede eliminar' : canDelete ? 'Eliminar pista' : 'Debe quedar al menos una pista'}
-          aria-label="Eliminar pista"
+          aria-label={t("Eliminar pista")}
           disabled={!canDelete || isMetronome}
           onClick={(e) => {
             e.stopPropagation()
@@ -215,7 +216,7 @@ export const TrackHeader = memo(function TrackHeader({
           data-testid={`record-arm-${trackIndex}`}
           onClick={() => { if (!isMetronome) onRecordArm(trackIndex) }}
           title={isMetronome ? 'No se graba en el metrónomo' : recordArmed ? 'Quitar rec-arm' : 'Armar pista para grabar'}
-          aria-label="Armar grabación"
+          aria-label={t("Armar grabación")}
           aria-pressed={recordArmed}
           disabled={isMetronome}
         >
@@ -227,7 +228,7 @@ export const TrackHeader = memo(function TrackHeader({
           data-testid={`fx-toggle-${trackIndex}`}
           onClick={() => onToggleFx(trackIndex)}
           title={fxOpen ? 'Cerrar efectos' : 'Efectos de pista'}
-          aria-label="Efectos de pista"
+          aria-label={t("Efectos de pista")}
           aria-pressed={fxOpen}
         >
           <IconSliders size={12} />
@@ -238,7 +239,7 @@ export const TrackHeader = memo(function TrackHeader({
           data-testid={`auto-toggle-${trackIndex}`}
           onClick={() => onToggleAuto(trackIndex)}
           title={autoOpen ? 'Ocultar automatización' : 'Mostrar automatización'}
-          aria-label="Automatización"
+          aria-label={t("Automatización")}
           aria-pressed={autoOpen}
         >
           <IconSpline size={12} />
@@ -246,23 +247,23 @@ export const TrackHeader = memo(function TrackHeader({
         <button
           className={`control-button mute-button ${mute ? 'active' : ''}`}
           onClick={() => onMute(trackIndex)}
-          title="Mute: silencia esta pista. Distinto de Aislar (oír solo una)."
+          title={t("Mute: silencia esta pista. Distinto de Aislar (oír solo una).")}
           aria-pressed={mute}
         >
-          M
+          {t("M")}
         </button>
         <button
           className={`control-button solo-button ${solo ? 'active' : ''}`}
           onClick={() => onSolo(trackIndex)}
-          title="Solo: deja esta pista sonando (podés activar Solo en varias). Aislar deja una sola."
+          title={t("Solo: deja esta pista sonando (podés activar Solo en varias). Aislar deja una sola.")}
           aria-pressed={solo}
         >
-          S
+          {t("S")}
         </button>
         <LiveParamSlider
           className="volume-slider header-volume"
           value={volume}
-          title="Volumen"
+          title={t("Volumen")}
           ariaLabel="Volumen"
           onLive={(v) => onVolumeLive(trackIndex, v)}
           onCommit={(v) => onVolumeCommit(trackIndex, v)}
@@ -271,8 +272,8 @@ export const TrackHeader = memo(function TrackHeader({
           type="button"
           className="control-button header-more"
           data-testid={`header-more-${trackIndex}`}
-          title="Más controles de pista"
-          aria-label="Más controles de pista"
+          title={t("Más controles de pista")}
+          aria-label={t("Más controles de pista")}
           onClick={(e) => {
             e.stopPropagation()
             onContextMenu(e, trackIndex)

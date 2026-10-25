@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { useLayoutEffect, useState, type MutableRefObject, type ReactNode } from 'react'
 import { RULER_HEIGHT_PX, displayLoop, rulerCursor, type LoopHit } from './loopRegion'
 import { pxPerSecond, timelineTicks, viewTimeWindow, type MapBeatTick, type TimelineTick } from './timelineZoom'
@@ -148,13 +149,13 @@ export function TimelineRuler({
             className="ruler-loop-handle start"
             data-testid="ruler-loop-start"
             style={{ left: `${(loop.start / max) * 100}%` }}
-            title="Inicio del loop"
+            title={t("Inicio del loop")}
           />
           <div
             className="ruler-loop-handle end"
             data-testid="ruler-loop-end"
             style={{ left: `${(loop.end / max) * 100}%` }}
-            title="Fin del loop"
+            title={t("Fin del loop")}
           />
         </>
       )}
