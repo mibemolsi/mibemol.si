@@ -414,6 +414,31 @@
   color: var(--loop);
 }
 
+.progressive-practice-trigger {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.progressive-practice-trigger.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.progressive-practice-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progressive-practice-status {
+  color: var(--accent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.progressive-practice-status.complete {
+  color: var(--text);
+}
+
 .zoom-label {
   display: inline-flex;
   color: var(--accent);
@@ -1627,6 +1652,93 @@
   margin: 0 0 12px 0;
   color: var(--accent);
   font-size: 18px;
+}
+
+.progressive-practice-dialog {
+  width: min(440px, 92vw);
+}
+
+.progressive-practice-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+
+.progressive-practice-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.progressive-practice-fields label:last-of-type {
+  grid-column: 1 / -1;
+}
+
+.progressive-practice-fields select {
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--bg-app);
+  color: var(--text);
+  font: inherit;
+}
+
+.progressive-practice-fields select:focus {
+  outline: 2px solid var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.progressive-practice-hint {
+  grid-column: 1 / -1;
+  color: var(--warning, #f0b45b) !important;
+  margin: 0 !important;
+}
+
+.progressive-practice-progress {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  color: var(--text);
+}
+
+.progressive-practice-progress span,
+.progressive-practice-progress small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.progressive-practice-meter {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--bg-app);
+}
+
+.progressive-practice-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.confirm-danger.progressive-practice-start {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.confirm-danger.progressive-practice-start:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.confirm-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .confirm-dialog p,
